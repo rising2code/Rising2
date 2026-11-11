@@ -32,6 +32,5 @@ services:
       
     environment:
       R2_LOG_LEVEL: DEBUG          # DEBUG = hex dumps + full SOAP bodies, INFO = one line per event
-      R2_CERT_MODE: per_user       # per_user | canned (see README "Matching players to reports")
       # R2_SB_OVERRIDE_SERVER_IP: 203.0.113.10
       # R2_MOTD: "Welcome to Rising2"

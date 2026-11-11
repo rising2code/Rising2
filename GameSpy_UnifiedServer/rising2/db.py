@@ -118,12 +118,6 @@ class StatsDB:
     def login_by_ticket(self, ticket: str) -> dict | None:
         return self.q1("SELECT * FROM logins WHERE ticket=? ORDER BY id DESC LIMIT 1", (ticket,))
 
-    def recent_logins_from_ip(self, ip: str, seconds: int = 6 * 3600) -> list[dict]:
-        return self.q(
-            "SELECT * FROM logins WHERE ip=? AND created>=? AND profileid IS NOT NULL ORDER BY id DESC",
-            (ip, now() - seconds),
-        )
-
     # ---- player stats -------------------------------------------------------
     def get_stats(self, profileid: int) -> dict | None:
         r = self.q1("SELECT * FROM player_stats WHERE profileid=?", (profileid,))

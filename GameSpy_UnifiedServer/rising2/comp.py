@@ -15,7 +15,6 @@ import time
 import uuid
 
 from . import log
-from .auth import CANNED_PROFILEID
 from .config import Config
 from .report import ReportError, parse_dime, parse_report
 from .soap import E, Node, envelope, parse_envelope
@@ -41,23 +40,14 @@ def _cert(op: Node) -> tuple[int | None, str | None]:
 
 
 def resolve_player(ctx, cert_pid: int | None, cert_nick: str | None, ip: str) -> tuple[int | None, str | None, str]:
-    """Return (profileid, nick, how). The canned AuthService certificate has the
-    same profileid for everybody, so then fall back to who logged in from that IP."""
-    if cert_pid and cert_pid != CANNED_PROFILEID:
-        u = ctx.db.login.get_by_profileid(cert_pid)
-        return cert_pid, (u["name"] if u else cert_nick), "certificate"
-    logins = ctx.db.stats.recent_logins_from_ip(ip)
-    distinct = {}
-    for lg in logins:
-        distinct.setdefault(lg["profileid"], lg["nick"])
-    if len(distinct) == 1:
-        pid, nick = next(iter(distinct.items()))
-        return pid, nick, "ip(unique recent login)"
-    if len(distinct) > 1:
-        # several accounts logged in from this IP: refuse to guess (wrong player would get the stats)
-        names = ",".join(str(n) for n in distinct.values())
-        return None, None, f"unresolved(AMBIGUOUS: {len(distinct)} players from this IP: {names})"
-    return None, None, "unresolved(no login from this IP)"
+    """Return (profileid, nick, how). Players are matched only by the profileid in the
+    certificate AuthService gave them - never by IP (several players may share one)."""
+    if not cert_pid:
+        return None, None, "unresolved(no profileid in certificate)"
+    u = ctx.db.login.get_by_profileid(cert_pid)
+    if not u:
+        return None, None, f"unresolved(certificate profileid {cert_pid} not in login DB)"
+    return cert_pid, u["name"], "certificate"
 
 
 def handle(op: Node, ctx, ip: str, raw_body: bytes, content_type: str) -> bytes:
@@ -91,8 +81,7 @@ def handle(op: Node, ctx, ip: str, raw_body: bytes, content_type: str) -> bytes:
                   ("game server" if is_host else "player") + f" will report; player matched by {how}"
                   + ("" if sess else " (csid unknown to this server!)"),
                   user=nick or cert_nick, ip=ip, csid=csid, ccid=ccid, profileid=pid, authoritative=auth,
-                  cert_profileid=cert_pid, hint=None if level == "INFO" else
-                  "use R2_CERT_MODE=per_user (default) so each certificate carries the real profileid")
+                  cert_profileid=cert_pid)
         return _resp(name, 0, None, csid, ccid)
 
     if name == "SubmitReport":

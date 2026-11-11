@@ -87,15 +87,15 @@ is parsed. **No log line means nothing reached the server.**
 2. The server and each client call `SetReportIntention`. Each gets a connection id (ccid), and the ccid is matched to an account.
 3. At the end of the session the server calls `SubmitReport`: a DIME message holding the binary ATLAS report.
 4. The report is saved raw, parsed, and stored (`comp_reports`, `comp_report_players`). Every raw key value is added to `player_key_totals`.
-5. `config/rules.py` turns it into the `PlayerStats_v1` row (XP into `TotalSkill`, `Rank` from XP thresholds, plus whatever you map).
+5. `config/rules.py` turns it into the `PlayerStats_v1` row (counter columns, `TotalSkill`, and `Rank` from the game's own formula).
 6. The game reads `PlayerStats_v1` through Sake, and the server answers from the database.
 
-### Matching players to reports (`R2_CERT_MODE`)
+### Matching players to reports
 
-* `per_user` (default): the AuthService certificate carries the player's real profileid, so matching works even when every player shares one IP.
-* `canned`: the old mock's certificate, byte for byte (profileid 22222 for everyone). Players are then matched by the IP they logged in from. If several accounts logged in from the same IP, the player is **not** credited, and a WARN line says so.
-
-If the game ever rejects logins with `per_user`, switch to `canned`.
+The AuthService certificate carries the player's real profileid, and the game
+sends it back with its report, so players are matched even when they all share
+one IP (confirmed with the real game). There is no matching by IP: a player
+whose certificate has no known profileid is **not** credited, and a WARN line says so.
 
 ### Stats rules: `config/rules.py`
 
@@ -115,32 +115,35 @@ def on_player(report, player, row):
 * The file is **reloaded when you save it**: the log shows `[STATS] [RULES] RELOADED`. A syntax error keeps the previous rules and logs an ERROR.
 * To apply changed rules to games already played, run `python -m rising2.admin rebuild --yes`. It recomputes every player from all stored reports and writes a JSON backup first. Manual `set` changes are not replayed.
 
-The default rules give XP per match plus a win bonus, count `TotalSessions` and
-`SessionsWon`, and set `Rank` with `compute_rank(row)`.
+The default rules have three steps (what every report key means, with exe addresses:
+[docs/report_keys.md](docs/report_keys.md)):
 
-The Rank values are the client's own labels (read from `RisingEagle.exe`):
+1. `default_columns()`: report keys into the counter columns (kills, hacks, medals,
+   per-weapon kills, class skills, ...).
+2. `total_skill_change()`: how much `TotalSkill` a match is worth. **This is the place for
+   custom rules** (seasons, bonuses). The default is what the original game did: the sum of
+   the six class skills of the match. `TotalSkill` never goes below 0.
+3. `official_rank()`: an exact copy of the game's own rank formula. The game client has the
+   same function and recomputes the rank it shows from `TotalSkill`, `SkillBySquadLeader`,
+   `SkillByPlatoonLeader` and `Qualifications`, so **do not change it**: change
+   `total_skill_change()` instead.
 
-| Rank | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
-|---|---|---|---|---|---|---|---|---|---|
-| Label | Pvt | PFC | Cpl | Sgt | GS | MC | Lt | Cpt | Mjr |
+The Rank values are the client's own labels; what a new player needs:
 
-The thresholds are our own estimate, scaled to a 2008 leader board:
+| Rank | Label | Needs |
+|---|---|---|
+| 0 | Pvt | `TotalSkill` < 300 |
+| 1 | PFC | 300 |
+| 2 | Cpl | 600 |
+| 3 | Sgt | 1,000 |
+| 4 | GS | 2,000 |
+| 5 | MC | 3,000 |
+| 6 | Lt | 4,000 and `SkillBySquadLeader` or `SkillByPlatoonLeader` >= 500 |
+| 7 | Cpt | 6,000 and either >= 1,000 |
+| 8 | Mjr | 10,000 and `SkillByPlatoonLeader` >= 2,000 |
 
-| Rank | Needs |
-|---|---|
-| Pvt | 0 general skill (`TotalSkill`) |
-| PFC | 1,000 |
-| Cpl | 5,000 |
-| Sgt | 15,000 |
-| GS | 30,000 |
-| MC | 50,000 |
-| Lt | MC plus 10,000 `SkillBySquadLeader` |
-| Cpt | MC plus 25,000 `SkillBySquadLeader` |
-| Mjr | Cpt plus 50,000 `SkillByPlatoonLeader` |
-
-Squad leading gets you to Lt and Cpt; only platoon leading makes a Captain a Major.
-Both leader skills stay 0 until report keys are mapped to them, so until then nobody
-gets past MC. The same table is at the top of `config/rules.py`.
+A player's current rank lowers the thresholds for keeping it, so a rank doesn't drop right
+away. The full formula is in `config/rules.py` and `docs/report_keys.md`.
 
 ### What's missing: `config/missing/`
 
@@ -200,7 +203,6 @@ JSON pages: `http://<server>/rising2/status`, `/rising2/players`, `/rising2/repo
 | `R2_LOG_LEVEL` | `DEBUG` | `DEBUG` / `INFO` / `WARN` |
 | `R2_LOG_HEX` | `1` | hex dump every packet (at DEBUG) |
 | `R2_LOG_HTTP_BODY` | `1` | log SOAP bodies (at DEBUG) |
-| `R2_CERT_MODE` | `per_user` | see "Matching players" |
 | `R2_DATA_DIR` | `/data` | base for DBs, reports, logs |
 | `R2_LOGIN_DB` / `R2_STATS_DB` | `$DATA/LoginDatabase.db3` / `$DATA/rising2_stats.db` | |
 | `R2_RULES` | `config/rules.py` | stats logic |
@@ -216,7 +218,7 @@ JSON pages: `http://<server>/rising2/status`, `/rising2/players`, `/rising2/repo
 
 `tools/selftest.py` talks to a running server the way the game does. It runs new
 user, login, QR2 register, server list decrypt, CD key, Auth, Sake, and a full
-Competition flow with a DIME report, then checks that XP and rank changed.
+Competition flow with a DIME report, then checks that `TotalSkill` and sessions changed.
 **Point it at a throw-away instance**, because it creates accounts:
 
 ```bash

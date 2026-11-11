@@ -1,7 +1,8 @@
 """AuthService (/AuthService/AuthService.asmx) - hands out the login certificate.
 
-The certificate below is byte-for-byte what the old ZSI mock sent (taken from
-its run_log.txt). Note the odd encoding: peerkeymodulus / peerkeyexponent /
+The certificate is the one the old ZSI mock sent (taken from its run_log.txt),
+but with the real account's userid / profileid / nick, so Competition reports
+can be matched to players even when they all share one IP. Note the odd encoding: peerkeymodulus / peerkeyexponent /
 serverdata are the hex text hex-encoded *again*, while signature and
 peerkeyprivate are plain hex. That is what the game accepted, so it is kept.
 """
@@ -30,11 +31,6 @@ _PRIVATE = ("8818DA2AC0E0956E0C67CA8D785CFAF3A11A9404D1ED9A6E580EA8569E087B75316
             "C11CDA6E1B689BF460A40BBAF861D800497822004880024B4E7F98A020B1896F536D7219E67AB24B17D60A7BDD7D42E3501BB2FA50BB0"
             "71EF7A80F29870FFD7C409C0B7BB7A8F70489D04D")
 
-CANNED_USERID = 11111
-CANNED_PROFILEID = 22222
-CANNED_NICK = "Jackalus"
-
-
 def _hex_of_text(s: str) -> str:
     return binascii.hexlify(s.encode("ascii")).decode("ascii")
 
@@ -56,17 +52,17 @@ def handle(op: Node, ctx, ip: str) -> bytes | None:
     nick = op.get("uniquenick") or op.get("profilenick") or op.get("nick") or op.get("email")
     if name in LOGIN_OPS:
         acct = ctx.db.login.get_user(nick) if nick else None
-        mode = Config.CERT_MODE
-        if mode == "per_user" and acct:
-            uid, pid, cnick = acct["userid"], acct["profileid"], acct["name"]
-        else:
-            uid, pid, cnick = CANNED_USERID, CANNED_PROFILEID, CANNED_NICK
         if acct:
+            uid, pid, cnick = acct["userid"], acct["profileid"], acct["name"]
             ctx.db.stats.add_login("auth", None, acct["profileid"], acct["name"], ip)
+        else:
+            # Unknown nick: still answer (the old mock always did), but with profileid 0,
+            # so nothing this client reports can be credited to anybody.
+            uid, pid, cnick = 0, 0, nick or ""
         log.event("AUTH", name.upper(), "INFO" if acct else "WARN",
-                  "certificate issued" + ("" if acct else " (nick not in login DB!)"),
-                  user=nick, ip=ip, cert_mode=mode, cert_profileid=pid, cert_nick=cnick,
-                  real_profileid=acct["profileid"] if acct else None,
+                  "certificate issued" + ("" if acct else " with profileid 0 - nick not in login DB, "
+                                          "this player's stats will NOT be saved"),
+                  user=nick, ip=ip, cert_profileid=pid, cert_nick=cnick,
                   partnercode=op.get("partnercode"), namespaceid=op.get("namespaceid"))
         return envelope(NS, E(f"{name}Response", E(f"{name}Result",
                                                    E("responseCode", 0), certificate(uid, pid, cnick),

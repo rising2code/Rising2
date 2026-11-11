@@ -65,13 +65,4 @@ class Config:
     # mock saw (useful behind Docker Desktop NAT, where every source is the gateway).
     SB_OVERRIDE_SERVER_IP = _env("R2_SB_OVERRIDE_SERVER_IP", "")
 
-    # AuthService certificate:
-    #  per_user - the old mock's certificate, but with userid/profileid/nick of
-    #             the real account, so Competition reports can be matched to
-    #             players even when they share one IP. (default)
-    #  canned   - byte-for-byte the certificate the old mock returned (known to
-    #             work with the game). Players are then matched by source IP,
-    #             which fails when several players share an IP.
-    CERT_MODE = _env("R2_CERT_MODE", "per_user")
-
     MOTD = _env("R2_MOTD", "Welcome to Rising2")

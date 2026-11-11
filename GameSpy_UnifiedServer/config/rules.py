@@ -37,6 +37,17 @@ player in it, on_player(report, player, row) is called, and it runs three steps:
 Then on_report(report, rows) runs once with rows = {profileid: row} for things
 that compare players (best score of the match, ...).
 
+Seasons
+-------
+Every season keeps its own stats; a new season starts every player from zero.
+    config/seasons/current.txt      name of the current season (default: "preseason")
+    config/seasons/<season>.py      that season's rules, run ON TOP of this file: whatever
+                                    it defines (usually just total_skill_change) replaces
+                                    the version here, for that season only.
+So this file is the default for every season, and total_skill_change() below is the
+fallback when a season file does not define its own. SEASON (a string) is the season the
+rules are running for. Example: config/seasons/example-pistols.py.
+
 Helpers: add(row, col, n)  keep_max(row, col, n)  keep_min(row, col, n)
 
 Missing stats
@@ -190,6 +201,7 @@ def default_columns(report, player, row):
 #   report.players       everyone in the match (compare against others)
 #
 # The default is what the original game did: the sum of the six class skills of the match.
+# It is the fallback for every season whose config/seasons/<season>.py does not define its own.
 # ============================================================================
 def total_skill_change(report, player, row, before):
     official = sum(player.key(key) for key, _ in CLASS_SKILLS)

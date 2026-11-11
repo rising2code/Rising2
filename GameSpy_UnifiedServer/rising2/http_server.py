@@ -6,6 +6,7 @@ including DIME bodies and requests to paths nobody expected.
 from __future__ import annotations
 
 import json
+import os
 import traceback
 import urllib.parse
 
@@ -128,26 +129,35 @@ class HttpSession(TcpSession):
     # ------------------------------------------------------------ debug ----
     async def debug_page(self, lpath: str, query: str) -> None:
         st = self.ctx.db.stats
+        rules = self.ctx.rules
+        season = rules.current_season()
+        q = dict(urllib.parse.parse_qsl(query))
         if lpath in ("/rising2", "/rising2/", "/rising2/status"):
+            sfile = rules.season_file(season)
             data = {
+                "season": season,
+                "season_rules": f"{rules.path} + {sfile}" if os.path.exists(sfile) else f"{rules.path} alone",
+                "seasons": st.seasons(),
                 "servers": [{"name": s.name, "addr": s.key, "listed": s.valid, "keys": s.keys, "players": s.players}
                             for s in self.ctx.qr2.servers.values()],
                 "pending_challenge": [s.key for s in self.ctx.qr2.pending.values()],
                 "users": len(self.ctx.db.login.all_users()),
                 "reports": st.q1("SELECT COUNT(*) AS n FROM comp_reports")["n"],
                 "sessions": st.q1("SELECT COUNT(*) AS n FROM comp_sessions")["n"],
-                "endpoints": ["/rising2/status", "/rising2/players", "/rising2/reports", "/rising2/report?id=N",
-                              "/rising2/sessions", "/rising2/keys", "/rising2/missing"],
+                "endpoints": ["/rising2/status", "/rising2/players[?season=S]", "/rising2/reports",
+                              "/rising2/report?id=N", "/rising2/sessions", "/rising2/keys[?season=S]", "/rising2/missing"],
             }
         elif lpath == "/rising2/players":
             from .stats import player_row
-            data = [player_row(self.ctx, u["profileid"], u["name"]) | {"lastip": u["lastip"]}
-                    for u in self.ctx.db.login.all_users()]
+            s = q.get("season") or season
+            data = {"season": s,
+                    "players": [player_row(self.ctx, u["profileid"], u["name"], s) | {"lastip": u["lastip"]}
+                                for u in self.ctx.db.login.all_users()]}
         elif lpath == "/rising2/reports":
-            data = st.q("SELECT id, csid, ccid, received, submitter_ip, raw_size, parse_ok, parse_error, game_status, "
-                        "player_count, team_count, applied FROM comp_reports ORDER BY id DESC LIMIT 200")
+            data = st.q("SELECT id, season, csid, ccid, received, submitter_ip, raw_size, parse_ok, parse_error, "
+                        "game_status, player_count, team_count, applied FROM comp_reports ORDER BY id DESC LIMIT 200")
         elif lpath == "/rising2/report":
-            rid = dict(urllib.parse.parse_qsl(query)).get("id", "0")
+            rid = q.get("id", "0")
             r = st.q1("SELECT * FROM comp_reports WHERE id=?", (rid,))
             if r and r.get("parsed_json"):
                 r["parsed"] = json.loads(r.pop("parsed_json"))
@@ -158,7 +168,9 @@ class HttpSession(TcpSession):
         elif lpath == "/rising2/missing":
             data = {"folder": self.ctx.missing.dir, "items": self.ctx.missing.items()}
         elif lpath == "/rising2/keys":
-            data = st.q("SELECT * FROM player_key_totals ORDER BY profileid, key_id")
+            s = q.get("season") or season
+            data = {"season": s, "keys": st.q("SELECT * FROM player_key_totals WHERE season=? ORDER BY profileid, key_id",
+                                               (s,))}
         else:
             await self.reply(404, b'{"error":"unknown debug page"}', "application/json")
             return

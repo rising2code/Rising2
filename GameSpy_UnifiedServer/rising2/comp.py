@@ -58,12 +58,14 @@ def handle(op: Node, ctx, ip: str, raw_body: bytes, content_type: str) -> bytes:
 
     if name in ("CreateSession", "CreateMatchlessSession"):
         csid, ccid = str(uuid.uuid4()), str(uuid.uuid4())
-        st.x("INSERT INTO comp_sessions (csid, host_ccid, created, host_ip, host_profileid, host_nick, gameid, matchless) "
-             "VALUES (?,?,?,?,?,?,?,?)",
-             (csid, ccid, int(time.time()), ip, cert_pid, cert_nick, gameid, int(name == "CreateMatchlessSession")))
+        season = ctx.rules.current_season()  # the match counts for the season it started in
+        st.x("INSERT INTO comp_sessions (csid, host_ccid, created, host_ip, host_profileid, host_nick, gameid, matchless, "
+             "season) VALUES (?,?,?,?,?,?,?,?,?)",
+             (csid, ccid, int(time.time()), ip, cert_pid, cert_nick, gameid, int(name == "CreateMatchlessSession"),
+              season))
         log.event("COMP", name.upper(), "INFO", "stats session created (game server passed the stats gate)",
-                  user=cert_nick, ip=ip, csid=csid, ccid=ccid, gameid=gameid, platformid=op.get("platformid"),
-                  cert_profileid=cert_pid)
+                  user=cert_nick, ip=ip, csid=csid, ccid=ccid, season=season, gameid=gameid,
+                  platformid=op.get("platformid"), cert_profileid=cert_pid)
         return _resp(name, 0, None, csid, ccid)
 
     if name == "SetReportIntention":
@@ -104,13 +106,16 @@ def submit_report(op: Node, ctx, ip: str, raw_body: bytes, content_type: str, ce
     if report_bytes is not None:
         with open(raw_name + ".report.bin", "wb") as f:
             f.write(report_bytes)
-    rid = st.x("INSERT INTO comp_reports (csid, ccid, received, submitter_ip, authoritative, raw_file, raw_size) "
-               "VALUES (?,?,?,?,?,?,?)",
+    # the report belongs to the season its session started in (a season switch mid-match doesn't move it)
+    sess = st.q1("SELECT season FROM comp_sessions WHERE csid=?", (csid,)) if csid else None
+    season = sess["season"] if sess else ctx.rules.current_season()
+    rid = st.x("INSERT INTO comp_reports (csid, ccid, received, submitter_ip, authoritative, raw_file, raw_size, season) "
+               "VALUES (?,?,?,?,?,?,?,?)",
                (csid, ccid, int(time.time()), ip, 1 if auth in ("1", "true") else 0,
                 raw_name + ".report.bin" if report_bytes is not None else None,
-                len(report_bytes) if report_bytes is not None else None))
-    log.event("COMP", "SUBMITREPORT", "INFO", "report received",
-              user=cert_nick, ip=ip, report=rid, csid=csid, ccid=ccid, authoritative=auth,
+                len(report_bytes) if report_bytes is not None else None, season))
+    log.event("COMP", "SUBMITREPORT", "INFO", "report received" + ("" if sess else " (unknown session: current season)"),
+              user=cert_nick, ip=ip, report=rid, season=season, csid=csid, ccid=ccid, authoritative=auth,
               size=len(report_bytes) if report_bytes is not None else None, content_type=content_type,
               saved=raw_name + ".*.bin")
     if report_bytes is None:
@@ -144,7 +149,7 @@ def submit_report(op: Node, ctx, ip: str, raw_body: bytes, content_type: str, ce
         pid = it["profileid"] if it else None
         nick = it["nick"] if it else None
         how = it["resolved_by"] if it else "unresolved(ccid never sent SetReportIntention)"
-        pkey = getattr(ctx.rules.get(), "PROFILE_ID_KEY", None)
+        pkey = getattr(ctx.rules.get(season), "PROFILE_ID_KEY", None)
         if pkey is not None and isinstance(p["keys"].get(int(pkey)), int):
             pid = p["keys"][int(pkey)]
             u = ctx.db.login.get_by_profileid(pid)
@@ -152,9 +157,10 @@ def submit_report(op: Node, ctx, ip: str, raw_body: bytes, content_type: str, ce
         entry = {"idx": p["idx"], "ccid": p["ccid"], "profileid": pid, "nick": nick, "team": p["team"],
                  "result": p.get("result"), "keys": p.get("keys", {})}
         players.append(entry)
-        st.x("INSERT OR REPLACE INTO comp_report_players (report_id, idx, ccid, profileid, nick, team, result, keys_json) "
-             "VALUES (?,?,?,?,?,?,?,?)",
-             (rid, p["idx"], p["ccid"], pid, nick, p["team"], p.get("result"), json.dumps(p.get("key_details", []))))
+        st.x("INSERT OR REPLACE INTO comp_report_players (report_id, idx, ccid, profileid, nick, team, result, keys_json, "
+             "season) VALUES (?,?,?,?,?,?,?,?,?)",
+             (rid, p["idx"], p["ccid"], pid, nick, p["team"], p.get("result"), json.dumps(p.get("key_details", [])),
+              season))
         log.event("COMP", "PLAYER", "INFO" if pid else "WARN",
                   f"#{p['idx']} team={p['team']} result={p.get('result_name')} matched_by={how}",
                   user=nick, report=rid, ccid=p["ccid"], profileid=pid,
@@ -163,11 +169,11 @@ def submit_report(op: Node, ctx, ip: str, raw_body: bytes, content_type: str, ce
             for d in p.get("key_details", []):
                 v = d["value"]
                 num = float(v) if isinstance(v, (int, float)) else 0.0
-                st.x("INSERT INTO player_key_totals (profileid, key_id, sum_value, max_value, last_value, count) "
-                     "VALUES (?,?,?,?,?,1) ON CONFLICT(profileid, key_id) DO UPDATE SET "
+                st.x("INSERT INTO player_key_totals (season, profileid, key_id, sum_value, max_value, last_value, count) "
+                     "VALUES (?,?,?,?,?,?,1) ON CONFLICT(season, profileid, key_id) DO UPDATE SET "
                      "sum_value=sum_value+excluded.sum_value, max_value=MAX(COALESCE(max_value, excluded.max_value), excluded.max_value), "
                      "last_value=excluded.last_value, count=count+1",
-                     (pid, d["key"], num, num, json.dumps(v)))
+                     (season, pid, d["key"], num, num, json.dumps(v)))
 
     def _json_safe(o):
         if isinstance(o, dict):
@@ -179,7 +185,7 @@ def submit_report(op: Node, ctx, ip: str, raw_body: bytes, content_type: str, ce
     st.x("UPDATE comp_reports SET parse_ok=1, game_status=?, flags=?, player_count=?, team_count=?, parsed_json=? WHERE id=?",
          (h["game_status"], h["flags"], h["players"], h["teams"], json.dumps(_json_safe(parsed)), rid))
 
-    apply_report(ctx, rid, parsed, players)
+    apply_report(ctx, rid, parsed, players, season)
     st.x("UPDATE comp_reports SET applied=1 WHERE id=?", (rid,))
     return _resp("SubmitReport", 0)
 

@@ -1,7 +1,8 @@
 """Sake storage (/SakeStorageServer/StorageServer.asmx).
 
-PlayerStats_v1 rows come from player_stats (filled by Competition reports) -
-one row per registered account, zeros if the player never played.
+PlayerStats_v1 rows come from player_stats (filled by Competition reports) of the
+CURRENT SEASON - one row per registered account, zeros if the player has not
+played this season.
 PersonalInfo rows are built from the login DB plus whatever the game wrote.
 Any other table is stored generically.
 Filters / sorts from the game ("ownerid = 100000001", "TotalSkill desc",
@@ -52,14 +53,16 @@ def _typed(row: dict, types: dict | None = None) -> dict:
 def rows_for_table(ctx, table: str) -> list[dict]:
     st = ctx.db.stats
     if table == "PlayerStats_v1":
+        # current season only: a player who has not played this season gets the new-player row
+        season = ctx.rules.current_season()
         out = []
         seen = set()
         for u in ctx.db.login.all_users():
-            out.append(_typed(player_row(ctx, u["profileid"], u["name"])))
+            out.append(_typed(player_row(ctx, u["profileid"], u["name"], season)))
             seen.add(u["profileid"])
-        for pid in st.all_stats():
+        for pid in st.all_stats(season):
             if pid not in seen:
-                out.append(_typed(player_row(ctx, pid)))
+                out.append(_typed(player_row(ctx, pid, None, season)))
         return out
     if table == "PersonalInfo":
         out = []
@@ -281,9 +284,10 @@ def handle(op: Node, ctx, ip: str) -> bytes:
                       "the GAME wrote PlayerStats_v1 directly (unexpected) - merged into player_stats",
                       values=values, **common)
             if pid:
-                row = player_row(ctx, pid)
+                season = ctx.rules.current_season()
+                row = player_row(ctx, pid, None, season)
                 row.update({k: v[1] for k, v in values.items()})
-                st.put_stats(pid, row.get("PlayerUnickName"), row)
+                st.put_stats(season, pid, row.get("PlayerUnickName"), row)
             return envelope(NS, E(f"{name}Response", E(f"{name}Result", "Success"),
                                   E("recordid", pid - PROFILE_ID_OFFSET) if (name == "CreateRecord" and pid) else None))
         if table == "PersonalInfo":

@@ -8,6 +8,10 @@ game server via QR2, fetches + decrypts the server list, checks a CD key, runs
 a full Competition flow (CreateSession, SetReportIntention x3, SubmitReport
 with a DIME report) and verifies that PlayerStats_v1 changed.
 
+Season test (when config/seasons/ of the server is reachable from here, e.g. run
+inside the container): switches to a new season, checks players start from zero,
+checks a match keeps the season it started in, then restores current.txt.
+
 Run it against a server with a THROW-AWAY data dir.
 """
 from __future__ import annotations
@@ -22,6 +26,7 @@ import socket
 import string
 import struct
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rising2 import gs_crypto as gc  # noqa: E402
@@ -84,6 +89,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--http-port", type=int, default=80)
+    ap.add_argument("--seasons-dir", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                                          "config", "seasons"),
+                    help="the server's config/seasons folder (season test runs only if it exists)")
+    ap.add_argument("--no-season-test", action="store_true")
     a = ap.parse_args()
     H = a.host
     tag = "".join(random.choice(string.ascii_lowercase) for _ in range(5))
@@ -255,20 +264,23 @@ def main() -> int:
     ccids = {n: intention(certs[n]) for n, _, _ in users}
     check("Competition SetReportIntention (server + 2 clients)", all(ccids.values()))
 
-    players = [
-        # key 18 = Squad Leader skill, key 14 = Trooper skill this match (the default TotalSkill is their sum)
-        {"ccid": ccids[users[0][0]], "team": 1, "result": 0,
-         "keys": {5: (0, 7), 6: (0, 3), 7: (3, "sniper"), 8: (4, 1.5), 18: (0, 4)}},
-        {"ccid": ccids[users[1][0]], "team": 2, "result": 1,
-         "keys": {5: (0, 2), 6: (0, 9), 9: (2, 4), 14: (0, -1), 999: (0, 1)}},
-    ]
-    report = build_report(players, [{"result": 0, "keys": {1: (0, 100)}}, {"result": 1, "keys": {1: (0, 50)}}],
-                          {1: (3, "x_range"), 2: (0, 600)})
-    xml = env("gsc", NS, f"<gsc:SubmitReport>{host_cert}<gsc:proof>0</gsc:proof><gsc:csid>{csid}</gsc:csid>"
-                         f"<gsc:ccid>{hccid}</gsc:ccid><gsc:gameid>1693</gsc:gameid><gsc:authoritative>1</gsc:authoritative>"
-                         f"</gsc:SubmitReport>").encode()
-    x = soap(H, a.http_port, "/CompetitionService/CompetitionService.asmx", NS + "SubmitReport",
-             build_dime(xml, report), ctype="application/dime")
+    def submit(csid, hccid, ccids) -> str:
+        players = [
+            # key 18 = Squad Leader skill, key 14 = Trooper skill this match (the default TotalSkill is their sum)
+            {"ccid": ccids[users[0][0]], "team": 1, "result": 0,
+             "keys": {5: (0, 7), 6: (0, 3), 7: (3, "sniper"), 8: (4, 1.5), 18: (0, 4)}},
+            {"ccid": ccids[users[1][0]], "team": 2, "result": 1,
+             "keys": {5: (0, 2), 6: (0, 9), 9: (2, 4), 14: (0, -1), 999: (0, 1)}},
+        ]
+        report = build_report(players, [{"result": 0, "keys": {1: (0, 100)}}, {"result": 1, "keys": {1: (0, 50)}}],
+                              {1: (3, "x_range"), 2: (0, 600)})
+        xml = env("gsc", NS, f"<gsc:SubmitReport>{host_cert}<gsc:proof>0</gsc:proof><gsc:csid>{csid}</gsc:csid>"
+                             f"<gsc:ccid>{hccid}</gsc:ccid><gsc:gameid>1693</gsc:gameid><gsc:authoritative>1</gsc:authoritative>"
+                             f"</gsc:SubmitReport>").encode()
+        return soap(H, a.http_port, "/CompetitionService/CompetitionService.asmx", NS + "SubmitReport",
+                    build_dime(xml, report), ctype="application/dime")
+
+    x = submit(csid, hccid, ccids)
     check("Competition SubmitReport (DIME)", "<ns1:result>0<" in x)
 
     after = {n: sake_stats(n)[0] for n, _, _ in users}
@@ -279,13 +291,68 @@ def main() -> int:
     check("Loser's TotalSkill floored at 0 (skill -1) and a session",
           len(b1) >= 4 and int(b1[1]) == max(0, int(a1[1]) - 1) and int(b1[3]) == int(a1[3]) + 1, f"{a1} -> {b1}")
 
-    c = http.client.HTTPConnection(H, a.http_port, timeout=5)
-    c.request("GET", "/rising2/status")
-    check("Debug page /rising2/status", c.getresponse().status == 200)
-    c.close()
+    import json
+
+    def status() -> dict:
+        c = http.client.HTTPConnection(H, a.http_port, timeout=5)
+        c.request("GET", "/rising2/status")
+        r = c.getresponse()
+        body = r.read()
+        c.close()
+        return json.loads(body) if r.status == 200 else {}
+
+    old_season = status().get("season")
+    check("Status page shows the current season", bool(old_season), f"season={old_season!r}")
+
+    # ---------------------------------------------------------------- SEASONS
+    cur_file = os.path.join(a.seasons_dir, "current.txt")
+    if a.no_season_test or not os.path.isdir(a.seasons_dir):
+        print(f"[SKIP] season test ({a.seasons_dir} not here; run inside the server container)")
+    else:
+        saved = open(cur_file, "rb").read() if os.path.exists(cur_file) else None
+        stamp = [time.time()]
+
+        def set_season(text: str | None) -> None:
+            if text is None:
+                if os.path.exists(cur_file):
+                    os.remove(cur_file)
+                return
+            with open(cur_file, "wb") as f:
+                f.write(text.encode())
+            stamp[0] += 2  # make sure the server sees a new modification time
+            os.utime(cur_file, (stamp[0], stamp[0]))
+
+        new_season = f"selftest-{tag}"
+        try:
+            set_season(f"# selftest\n{new_season}\n")
+            check("Season switch shows on the status page", status().get("season") == new_season,
+                  f"season={status().get('season')!r}")
+            fresh = sake_stats(users[0][0])[0]
+            check("New season: player starts from zero", len(fresh) >= 4 and fresh[1] == "0" and fresh[3] == "0",
+                  str(fresh))
+            # a match that starts in the new season and ends after switching back still counts for the new season
+            x = soap(H, a.http_port, "/CompetitionService/CompetitionService.asmx", NS + "CreateSession",
+                     env("gsc", NS, f"<gsc:CreateSession>{host_cert}<gsc:proof>0</gsc:proof><gsc:gameid>1693</gsc:gameid>"
+                                    f"</gsc:CreateSession>"))
+            csid = re.search(r"<ns1:csid>([^<]+)", x).group(1)
+            hccid = re.search(r"<ns1:ccid>([^<]+)", x).group(1)
+            intention(host_cert, hccid)
+            ccids2 = {n: intention(certs[n]) for n, _, _ in users}
+            set_season(saved.decode() if saved is not None else None)
+            check("Season switched back", status().get("season") == old_season, f"season={status().get('season')!r}")
+            x = submit(csid, hccid, ccids2)
+            check("Report of a match started in the other season accepted", "<ns1:result>0<" in x)
+            back = sake_stats(users[0][0])[0]
+            check("Old season untouched by it", back[1:4] == b0[1:4], f"{b0} -> {back}")
+            set_season(f"{new_season}\n")
+            ns = sake_stats(users[0][0])[0]
+            check("The match counted for the season it started in (TotalSkill 4, 1 session)",
+                  len(ns) >= 4 and ns[1] == "4" and ns[3] == "1", str(ns))
+        finally:
+            set_season(saved.decode() if saved is not None else None)
+        check("current.txt restored", status().get("season") == old_season, f"season={status().get('season')!r}")
 
     # unread report keys / unknown requested columns must be listed as missing
-    import json
     c = http.client.HTTPConnection(H, a.http_port, timeout=5)
     c.request("GET", "/rising2/missing")
     items = json.loads(c.getresponse().read()).get("items", {})

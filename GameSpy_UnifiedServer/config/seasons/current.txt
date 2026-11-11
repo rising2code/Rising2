@@ -1,0 +1,8 @@
+# The current season: the first line that is not empty and not a comment.
+# Letters, digits, _ . - only (e.g. 2027-pistols). Saved -> active right away, no restart.
+#
+# A new season starts every player from zero. Old seasons stay in the database, and
+# naming an old season here again brings its stats back.
+# Rules of a season: config/rules.py, then config/seasons/<season>.py on top of it
+# (if that file exists). Without this file the season is "preseason".
+preseason

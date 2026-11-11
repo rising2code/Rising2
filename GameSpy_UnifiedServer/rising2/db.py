@@ -23,16 +23,54 @@ def now() -> int:
     return int(time.time())
 
 
-def _open(path: str, schema_file: str) -> sqlite3.Connection:
+def _open(path: str, schema_file: str, migrate=None) -> sqlite3.Connection:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     existed = os.path.exists(path)
     con = sqlite3.connect(path, isolation_level=None)  # autocommit
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA journal_mode=WAL")
+    after = migrate(con) if migrate else None
     with open(os.path.join(SCHEMA_DIR, schema_file), encoding="utf-8") as f:
         con.executescript(f.read())  # all statements are IF NOT EXISTS
+    if after:
+        after(con)
     log.event("CORE", "DB", "INFO", ("opened" if existed else "created new") + f" database {path}")
     return con
+
+
+def _columns(con: sqlite3.Connection, table: str) -> list[str] | None:
+    cols = [r[1] for r in con.execute(f"PRAGMA table_info({table})")]
+    return cols or None  # None = table does not exist
+
+
+def _migrate_seasons(con: sqlite3.Connection):
+    """Databases from before seasons: add a `season` column (old data -> DEFAULT_SEASON).
+    Runs before the schema script; returns a step to run after it (or None)."""
+    legacy = Config.DEFAULT_SEASON
+    for t in ("comp_sessions", "comp_reports", "comp_report_players"):
+        cols = _columns(con, t)
+        if cols and "season" not in cols:
+            con.execute(f"ALTER TABLE {t} ADD COLUMN season TEXT NOT NULL DEFAULT '{legacy}'")
+            log.event("CORE", "DB", "WARN", f"migrated {t}: added season column, old rows -> season '{legacy}'")
+    # these two get season in their primary key, so they are rebuilt: rename now, copy after
+    renamed = []
+    for t in ("player_stats", "player_key_totals"):
+        cols = _columns(con, t)
+        if cols and "season" not in cols:
+            con.execute(f"ALTER TABLE {t} RENAME TO {t}_pre_season")
+            renamed.append((t, cols))
+    if not renamed:
+        return None
+
+    def copy_rows(con: sqlite3.Connection) -> None:
+        for t, cols in renamed:
+            names = ", ".join(cols)
+            con.execute("BEGIN")
+            con.execute(f"INSERT INTO {t} (season, {names}) SELECT ?, {names} FROM {t}_pre_season", (legacy,))
+            con.execute(f"DROP TABLE {t}_pre_season")
+            con.execute("COMMIT")
+            log.event("CORE", "DB", "WARN", f"migrated {t}: season added to the key, old rows -> season '{legacy}'")
+    return copy_rows
 
 
 def copy_templates() -> None:
@@ -97,7 +135,7 @@ class LoginDB:
 
 class StatsDB:
     def __init__(self, path: str) -> None:
-        self.con = _open(path, "schema_stats.sql")
+        self.con = _open(path, "schema_stats.sql", _migrate_seasons)
 
     def q(self, sql: str, args: tuple = ()) -> list[dict]:
         return [dict(r) for r in self.con.execute(sql, args)]
@@ -118,23 +156,37 @@ class StatsDB:
     def login_by_ticket(self, ticket: str) -> dict | None:
         return self.q1("SELECT * FROM logins WHERE ticket=? ORDER BY id DESC LIMIT 1", (ticket,))
 
-    # ---- player stats -------------------------------------------------------
-    def get_stats(self, profileid: int) -> dict | None:
-        r = self.q1("SELECT * FROM player_stats WHERE profileid=?", (profileid,))
+    # ---- player stats (one row per season and player) -----------------------
+    def get_stats(self, season: str, profileid: int) -> dict | None:
+        r = self.q1("SELECT * FROM player_stats WHERE season=? AND profileid=?", (season, profileid))
         if not r:
             return None
         r["data"] = json.loads(r["data_json"])
         return r
 
-    def all_stats(self) -> dict[int, dict]:
-        return {r["profileid"]: json.loads(r["data_json"]) for r in self.q("SELECT * FROM player_stats")}
+    def all_stats(self, season: str) -> dict[int, dict]:
+        return {r["profileid"]: json.loads(r["data_json"])
+                for r in self.q("SELECT * FROM player_stats WHERE season=?", (season,))}
 
-    def put_stats(self, profileid: int, nick: str | None, data: dict) -> None:
+    def put_stats(self, season: str, profileid: int, nick: str | None, data: dict) -> None:
         self.x(
-            "INSERT INTO player_stats (profileid, nick, data_json, updated) VALUES (?,?,?,?) "
-            "ON CONFLICT(profileid) DO UPDATE SET nick=excluded.nick, data_json=excluded.data_json, updated=excluded.updated",
-            (profileid, nick, json.dumps(data, sort_keys=True), now()),
+            "INSERT INTO player_stats (season, profileid, nick, data_json, updated) VALUES (?,?,?,?,?) "
+            "ON CONFLICT(season, profileid) DO UPDATE SET nick=excluded.nick, data_json=excluded.data_json, "
+            "updated=excluded.updated",
+            (season, profileid, nick, json.dumps(data, sort_keys=True), now()),
         )
+
+    def seasons(self) -> list[dict]:
+        """Every season that has data, oldest first: name, reports, players, first/last report time."""
+        return self.q(
+            "SELECT s.season, COALESCE(r.reports, 0) AS reports, COALESCE(p.players, 0) AS players, "
+            "r.first_report, r.last_report FROM "
+            "(SELECT season FROM comp_sessions UNION SELECT season FROM comp_reports "
+            " UNION SELECT season FROM player_stats) s "
+            "LEFT JOIN (SELECT season, COUNT(*) AS reports, MIN(received) AS first_report, MAX(received) AS last_report "
+            "           FROM comp_reports GROUP BY season) r ON r.season = s.season "
+            "LEFT JOIN (SELECT season, COUNT(*) AS players FROM player_stats GROUP BY season) p ON p.season = s.season "
+            "ORDER BY COALESCE(r.first_report, 9e18), s.season")
 
     # ---- generic sake -------------------------------------------------------
     def sake_records(self, table_id: str) -> list[dict]:

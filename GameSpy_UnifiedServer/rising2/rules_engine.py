@@ -1,9 +1,16 @@
-"""Loads config/rules.py (reloading it when the file changes) and runs it on reports."""
+"""Loads the stats rules and runs them on reports.
+
+Rules for a season = config/rules.py, then config/seasons/<season>.py run on top of it
+(anything the season file defines replaces the rules.py version, e.g. total_skill_change).
+The active season is the first line of config/seasons/current.txt. Missing season file ->
+rules.py alone; missing / empty current.txt -> Config.DEFAULT_SEASON. Every file is
+re-read when it changes (no restart needed).
+"""
 from __future__ import annotations
 
 import copy
-import importlib.util
 import os
+import re
 import shutil
 import traceback
 import types
@@ -15,17 +22,29 @@ from .stats import default_row, player_row
 
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_RULES = os.path.join(_HERE, "defaults", "rules.py")  # copy baked into the Docker image
+SEASON_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+_UNREAD = object()
 
 
 def rules_path() -> str:
     return Config.RULES or os.path.join(_HERE, "config", "rules.py")
 
 
+def _mtime(path: str | None):
+    try:
+        return os.path.getmtime(path) if path else None
+    except OSError:
+        return None
+
+
 class Rules:
     def __init__(self) -> None:
         self.path = rules_path()
-        self.module: types.ModuleType | None = None
-        self.mtime = None
+        self.seasons_dir = Config.SEASONS_DIR or os.path.join(os.path.dirname(self.path), "seasons")
+        self.current_file = os.path.join(self.seasons_dir, "current.txt")
+        self._modules: dict[str, tuple[tuple, types.ModuleType | None]] = {}  # season -> (file mtimes, module)
+        self._current_mtime = _UNREAD
+        self._current = Config.DEFAULT_SEASON
         if not os.path.exists(self.path) and os.path.exists(DEFAULT_RULES):
             try:
                 os.makedirs(os.path.dirname(self.path), exist_ok=True)
@@ -35,39 +54,82 @@ class Rules:
                 log.event("STATS", "RULES", "ERROR", f"could not create {self.path}: {e}")
         self.get()
 
-    def get(self) -> types.ModuleType:
-        try:
-            mtime = os.path.getmtime(self.path)
-        except OSError:
-            mtime = None
-        if self.module is None or mtime != self.mtime:
-            self._load(mtime)
-        return self.module or types.ModuleType("empty_rules")
+    # ---- seasons -------------------------------------------------------------
+    def current_season(self) -> str:
+        """The active season: first line of current.txt (re-read when the file changes)."""
+        mtime = _mtime(self.current_file)
+        if mtime == self._current_mtime:
+            return self._current
+        first = self._current_mtime is _UNREAD
+        season, why, level = Config.DEFAULT_SEASON, f"no {self.current_file}, using the default", "INFO"
+        if mtime is not None:
+            try:
+                with open(self.current_file, encoding="utf-8") as f:
+                    lines = [ln.strip() for ln in f if ln.strip() and not ln.strip().startswith("#")]
+                if lines and SEASON_NAME.match(lines[0]):
+                    season, why = lines[0], f"from {self.current_file}"
+                elif lines:
+                    why, level = (f"INVALID season name {lines[0]!r} in {self.current_file} "
+                                  "(letters, digits, _ . - only), using the default"), "ERROR"
+                else:
+                    why = f"{self.current_file} names no season, using the default"
+            except OSError as e:
+                why, level = f"could not read {self.current_file}: {e}, using the default", "ERROR"
+        changed = season != self._current
+        self._current_mtime, self._current = mtime, season
+        if first or changed or level == "ERROR":
+            f = self.season_file(season)
+            log.event("STATS", "SEASON", level,
+                      ("current season" if first or not changed else "SEASON CHANGED to") + f" '{season}' ({why})",
+                      season_rules=f"rules.py + {f}" if os.path.exists(f) else "rules.py alone (no season file)")
+        return season
 
-    def _load(self, mtime) -> None:
+    def season_file(self, season: str) -> str:
+        return os.path.join(self.seasons_dir, f"{season}.py")
+
+    # ---- rules -----------------------------------------------------------------
+    def get(self, season: str | None = None) -> types.ModuleType:
+        """The rules module for `season` (default: the current season)."""
+        season = season or self.current_season()
+        sfile = self.season_file(season) if SEASON_NAME.match(season) else None
+        sig = (_mtime(self.path), _mtime(sfile))
+        cached = self._modules.get(season)
+        if cached is None or cached[0] != sig:
+            self._load(season, sfile, sig, cached[1] if cached else None)
+        return self._modules[season][1] or types.ModuleType("empty_rules")
+
+    def _load(self, season: str, sfile: str | None, sig: tuple, previous) -> None:
+        files = [self.path] + ([sfile] if sig[1] is not None else [])
         try:
-            spec = importlib.util.spec_from_file_location("rising2_user_rules", self.path)
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
+            mod = types.ModuleType("rising2_rules_" + re.sub(r"\W", "_", season))
+            mod.__file__ = files[-1]
+            mod.SEASON = season
+            mod.SEASON_FILE = sfile if sig[1] is not None else None
+            for path in files:  # rules.py first, then the season file on top of it
+                with open(path, encoding="utf-8") as f:
+                    exec(compile(f.read(), path, "exec"), mod.__dict__)
             if not hasattr(mod, "on_player"):
-                raise AttributeError("rules.py has no on_player(report, player, row) function")
-            action = "loaded" if self.module is None else "RELOADED (file changed)"
-            self.module, self.mtime = mod, mtime
-            log.event("STATS", "RULES", "INFO", f"{action} {self.path}",
+                raise AttributeError("no on_player(report, player, row) function")
+            action = "loaded" if previous is None else "RELOADED (file changed)"
+            self._modules[season] = (sig, mod)
+            log.event("STATS", "RULES", "INFO", f"{action} rules for season '{season}': " + " + ".join(files),
                       ignored_keys=sorted(getattr(mod, "IGNORED_KEYS", set())) or None,
                       profile_id_key=getattr(mod, "PROFILE_ID_KEY", None))
         except Exception as e:
-            self.mtime = mtime  # don't retry until the file changes again
-            keep = "keeping the previously loaded rules" if self.module else \
+            self._modules[season] = (sig, previous)  # don't retry until a file changes again
+            keep = "keeping the previously loaded rules" if previous else \
                 "NO rules active: reports are stored but stats are not updated (fix it, then run admin rebuild)"
-            log.event("STATS", "RULES", "ERROR", f"{self.path} failed to load: {e!r} - {keep}\n{traceback.format_exc()}")
+            log.event("STATS", "RULES", "ERROR", f"rules for season '{season}' failed to load ({' + '.join(files)}): "
+                      f"{e!r} - {keep}\n{traceback.format_exc()}")
 
 
-def apply_report(ctx, report_id: int, parsed: dict, players: list[dict], record_missing: bool = True) -> None:
-    """players: [{idx, ccid, profileid, nick, team, result, keys:{id:value}}]"""
-    rules = ctx.rules.get()
+def apply_report(ctx, report_id: int, parsed: dict, players: list[dict], season: str,
+                 record_missing: bool = True) -> None:
+    """players: [{idx, ccid, profileid, nick, team, result, keys:{id:value}}]. Stats go to `season`."""
+    rules = ctx.rules.get(season)
     if not hasattr(rules, "on_player"):
-        log.event("STATS", "APPLY", "ERROR", f"report {report_id} not applied: no working rules.py", report=report_id)
+        log.event("STATS", "APPLY", "ERROR", f"report {report_id} not applied: no working rules for season '{season}'",
+                  report=report_id, season=season)
         return
     rv = ReportView(report_id, parsed, players)
 
@@ -80,7 +142,7 @@ def apply_report(ctx, report_id: int, parsed: dict, players: list[dict], record_
     before: dict[int, dict] = {}
     for pv in rv.players:
         if pv.profileid:
-            row = player_row(ctx, pv.profileid, pv.nick)
+            row = player_row(ctx, pv.profileid, pv.nick, season)
             before[pv.profileid] = copy.deepcopy(row)
         else:
             row = default_row(0, pv.nick or "?")  # scratch row, so missing-key detection still works
@@ -105,14 +167,15 @@ def apply_report(ctx, report_id: int, parsed: dict, players: list[dict], record_
 
     for pid, row in rows.items():
         b = before.get(pid, {})
-        ctx.db.stats.put_stats(pid, row.get("PlayerUnickName"), row)
+        ctx.db.stats.put_stats(season, pid, row.get("PlayerUnickName"), row)
         pv = next(p for p in rv.players if p.profileid == pid)
         changes = ", ".join(f"{c}:{b.get(c)}->{row[c]}" for c in row if b.get(c) != row[c]) or "none"
         log.event("STATS", "APPLY", "INFO", f"stats saved, result={pv.result}", user=row.get("PlayerUnickName"),
-                  report=report_id, profileid=pid, changes=changes)
+                  report=report_id, season=season, profileid=pid, changes=changes)
         if b.get("Rank") != row.get("Rank"):
             log.event("STATS", "RANKUP", "INFO", f"rank changed {b.get('Rank')} -> {row.get('Rank')}",
-                      user=row.get("PlayerUnickName"), profileid=pid, xp=row.get("TotalSkill"))
+                      user=row.get("PlayerUnickName"), season=season, profileid=pid,
+                      total_skill=row.get("TotalSkill"))
 
     if record_missing:
         _record_missing(ctx, rules, rv, parsed)

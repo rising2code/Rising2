@@ -113,7 +113,7 @@ def on_player(report, player, row):
 * `player.keys` are the raw numbers the game sent; `row` is what the client reads.
 * Setting a new column name makes it available to the client too.
 * The file is **reloaded when you save it**: the log shows `[STATS] [RULES] RELOADED`. A syntax error keeps the previous rules and logs an ERROR.
-* To apply changed rules to games already played, run `python -m rising2.admin rebuild --yes`. It recomputes every player from all stored reports and writes a JSON backup first. Manual `set` changes are not replayed.
+* To apply changed rules to games already played, run `python -m rising2.admin rebuild --yes`. It recomputes every player of the current season from that season's stored reports (add `--season <name>` for another season, `--all-seasons` for all) and writes a JSON backup first. Manual `set` changes are not replayed.
 
 The default rules have three steps (what every report key means, with exe addresses:
 [docs/report_keys.md](docs/report_keys.md)):
@@ -144,6 +144,26 @@ The Rank values are the client's own labels; what a new player needs:
 
 A player's current rank lowers the thresholds for keeping it, so a rank doesn't drop right
 away. The full formula is in `config/rules.py` and `docs/report_keys.md`.
+
+### Seasons: `config/seasons/`
+
+Every season keeps its own stats, and a new season starts every player from zero.
+
+| File | Meaning |
+|---|---|
+| `config/seasons/current.txt` | the current season's name: the first line that is not empty or a `#` comment. Letters, digits, `_ . -` (e.g. `2027-pistols`) |
+| `config/seasons/<season>.py` | optional rules for that season. They run **on top of** `config/rules.py`: whatever the file defines (usually just `total_skill_change`) replaces the `rules.py` version, for that season only |
+
+* Without `current.txt` (or with an empty or invalid one) the season is `preseason`.
+  Without a season file, `config/rules.py` alone is used: its `total_skill_change` is the fallback.
+* Saving `current.txt` switches the season **at once**, no restart. The log shows `[STATS] [SEASON] SEASON CHANGED`.
+* Every match session gets the current season when the game server starts it; its report
+  counts for that season even if you switch seasons before the match ends.
+* The game only ever sees the current season: a player with no stats in it gets the
+  new-player row (Pvt, all zeros). Old seasons stay in the database; naming an old season
+  in `current.txt` again brings its stats back.
+* Data from before seasons existed is season `preseason` (the database is migrated on the first start).
+* Example: `config/seasons/example-pistols.py`.
 
 ### What's missing: `config/missing/`
 
@@ -191,10 +211,12 @@ docker compose exec rising2 python -m rising2.admin users
 docker compose exec rising2 python -m rising2.admin set <nick> Rank 3
 ```
 
-Other commands: `stats <nick>`, `add-xp <nick> <n>`, `reports`, `report <id>`, `keys [nick]`, `rebuild --yes`.
+Other commands: `seasons`, `stats <nick>`, `add-xp <nick> <n>`, `reports`, `report <id>`, `keys [nick]`,
+`rebuild --yes [--all-seasons]`. Stats commands work on the current season; add `--season <name>` for another.
 
-JSON pages: `http://<server>/rising2/status`, `/rising2/players`, `/rising2/reports`,
-`/rising2/report?id=N`, `/rising2/sessions`, `/rising2/keys`, `/rising2/missing`.
+JSON pages: `http://<server>/rising2/status` (includes the current `season` and every season with data),
+`/rising2/players[?season=S]`, `/rising2/reports`, `/rising2/report?id=N`, `/rising2/sessions`,
+`/rising2/keys[?season=S]`, `/rising2/missing`.
 
 ## Configuration (environment variables)
 
@@ -207,6 +229,7 @@ JSON pages: `http://<server>/rising2/status`, `/rising2/players`, `/rising2/repo
 | `R2_LOGIN_DB` / `R2_STATS_DB` | `$DATA/LoginDatabase.db3` / `$DATA/rising2_stats.db` | |
 | `R2_RULES` | `config/rules.py` | stats logic |
 | `R2_MISSING_DIR` | `config/missing` | missing-stat files |
+| `R2_SEASONS_DIR` | `config/seasons` | `current.txt` and the season rule files |
 | `R2_SB_OVERRIDE_SERVER_IP` | empty | list game servers with this IP (for Docker NAT) |
 | `R2_QR_ANSWER_AVAILABILITY` | `1` | answer the QR2 0x09 "is the game up" packet |
 | `R2_QR_SERVER_TIMEOUT` | `30` | seconds before a silent game server is dropped |
@@ -219,6 +242,8 @@ JSON pages: `http://<server>/rising2/status`, `/rising2/players`, `/rising2/repo
 `tools/selftest.py` talks to a running server the way the game does. It runs new
 user, login, QR2 register, server list decrypt, CD key, Auth, Sake, and a full
 Competition flow with a DIME report, then checks that `TotalSkill` and sessions changed.
+Run inside the container it also switches to a temporary season (and back) to check that
+players start from zero and a match keeps the season it started in.
 **Point it at a throw-away instance**, because it creates accounts:
 
 ```bash

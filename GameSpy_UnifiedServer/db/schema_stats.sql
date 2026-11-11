@@ -1,6 +1,10 @@
 -- Rising2 stats database (rising2_stats.db)
 -- Competition (ATLAS) sessions and reports, computed player stats, and every
 -- other Sake record the game writes.
+--
+-- Seasons: everything that feeds ranking carries a `season` (a name like
+-- 'preseason' or '2027-pistols', chosen in config/seasons/current.txt). A new
+-- season starts every player from zero; old seasons stay in the tables.
 
 -- One row per CreateSession / CreateMatchlessSession (sent by the game server)
 CREATE TABLE IF NOT EXISTS comp_sessions (
@@ -11,7 +15,8 @@ CREATE TABLE IF NOT EXISTS comp_sessions (
     host_profileid INTEGER,
     host_nick   TEXT,
     gameid      INTEGER,
-    matchless   INTEGER NOT NULL DEFAULT 0
+    matchless   INTEGER NOT NULL DEFAULT 0,
+    season      TEXT    NOT NULL DEFAULT 'preseason'   -- season when the session started
 );
 
 -- One row per SetReportIntention (server and every client). Maps the
@@ -46,8 +51,10 @@ CREATE TABLE IF NOT EXISTS comp_reports (
     player_count  INTEGER,
     team_count    INTEGER,
     applied       INTEGER NOT NULL DEFAULT 0,
-    parsed_json   TEXT
+    parsed_json   TEXT,
+    season        TEXT    NOT NULL DEFAULT 'preseason'  -- the session's season
 );
+CREATE INDEX IF NOT EXISTS ix_reports_season ON comp_reports(season, id);
 
 -- Per player inside a report
 CREATE TABLE IF NOT EXISTS comp_report_players (
@@ -59,27 +66,31 @@ CREATE TABLE IF NOT EXISTS comp_report_players (
     team       INTEGER,
     result     INTEGER,
     keys_json  TEXT,
+    season     TEXT    NOT NULL DEFAULT 'preseason',
     PRIMARY KEY (report_id, idx)
 );
 
--- Running totals of every raw report key per player. Until the meaning of
--- the keys (5..0x2d) is known this is the place to look.
+-- Running totals of every raw report key per player and season
+-- (what the keys mean: docs/report_keys.md).
 CREATE TABLE IF NOT EXISTS player_key_totals (
+    season    TEXT    NOT NULL DEFAULT 'preseason',
     profileid INTEGER NOT NULL,
     key_id    INTEGER NOT NULL,
     sum_value REAL NOT NULL DEFAULT 0,
     max_value REAL,
     last_value TEXT,
     count     INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (profileid, key_id)
+    PRIMARY KEY (season, profileid, key_id)
 );
 
--- The PlayerStats_v1 Sake row of each player (JSON object column -> value)
+-- The PlayerStats_v1 Sake row of each player per season (JSON object column -> value)
 CREATE TABLE IF NOT EXISTS player_stats (
-    profileid INTEGER PRIMARY KEY,
+    season    TEXT    NOT NULL DEFAULT 'preseason',
+    profileid INTEGER NOT NULL,
     nick      TEXT,
     data_json TEXT NOT NULL,
-    updated   INTEGER NOT NULL
+    updated   INTEGER NOT NULL,
+    PRIMARY KEY (season, profileid)
 );
 
 -- Generic Sake storage for every other table (PersonalInfo, ...).

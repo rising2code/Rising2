@@ -35,6 +35,11 @@ class Config:
     LOG_DIR = _env("R2_LOG_DIR", os.path.join(DATA_DIR, "logs"))
     RULES = _env("R2_RULES", "")              # path to rules.py, empty = <app>/config/rules.py
     MISSING_DIR = _env("R2_MISSING_DIR", "")  # empty = "missing" folder next to rules.py
+    # Seasons: config/seasons/current.txt names the active season, config/seasons/<name>.py
+    # holds that season's rules (on top of rules.py). Without them the season is DEFAULT_SEASON
+    # and rules.py alone is used. Data from before seasons existed belongs to DEFAULT_SEASON.
+    SEASONS_DIR = _env("R2_SEASONS_DIR", "")  # empty = "seasons" folder next to rules.py
+    DEFAULT_SEASON = "preseason"              # must match the DEFAULT in db/schema_stats.sql
 
     LOG_LEVEL = _env("R2_LOG_LEVEL", "DEBUG")
     LOG_HEX = _env_bool("R2_LOG_HEX", True)          # hex dump every packet

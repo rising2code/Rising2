@@ -45,8 +45,10 @@ def default_row(profileid: int, nick: str) -> dict:
     return row
 
 
-def player_row(ctx, profileid: int, nick: str | None = None) -> dict:
-    stored = ctx.db.stats.get_stats(profileid)
+def player_row(ctx, profileid: int, nick: str | None = None, season: str | None = None) -> dict:
+    """The player's PlayerStats_v1 row in `season` (default: the current season).
+    A player with no row in that season gets the blank new-player row."""
+    stored = ctx.db.stats.get_stats(season or ctx.rules.current_season(), profileid)
     if nick is None:
         u = ctx.db.login.get_by_profileid(profileid)
         nick = u["name"] if u else (stored or {}).get("nick") or f"player{profileid}"

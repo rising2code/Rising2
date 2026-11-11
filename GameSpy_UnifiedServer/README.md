@@ -42,12 +42,14 @@ Data lives in `./data` (mounted at `/data`):
 ```
 data/LoginDatabase.db3        accounts, same schema as the old C# server (drop the old file in)
 data/rising2_stats.db         sessions, reports, stats, Sake records
-data/reports/*.bin            every raw SubmitReport (HTTP body + report) as received
-data/logs/rising2.log         rotating log, same lines as the console
+data/reports/*.bin            every raw SubmitReport (HTTP body + report) as received (kept 7 days)
+data/logs/rising2.log         rotating log, every line in full (the console shortens long ones)
 data/create_empty_db.py       + schema_*.sql: copied here on every start
 config/rules.py               stats logic (Python), reloaded automatically when saved
 config/missing/               stats we receive or are asked for but don't handle yet (see below)
 ```
+
+Nothing here grows forever: see [Cleanup](#cleanup).
 
 To make empty databases: `python data/create_empty_db.py --out some/folder`
 (`--force` replaces existing files and keeps a `.bak`).
@@ -75,6 +77,11 @@ is parsed. **No log line means nothing reached the server.**
   * `[#-]`: not tied to a connection (startup, timers).
 * `R2_LOG_LEVEL=DEBUG` (default) adds hex dumps of every packet and the full SOAP request/response bodies.
 * `R2_LOG_LEVEL=INFO` gives one line per event.
+* The console (and `docker compose logs`) shortens long lines; `data/logs/rising2.log` has them in full:
+  * a message over 1024 characters: `first 400 ....[+N chars, see rising2.log].... last 400`
+  * a hex dump over 512 bytes: its first and last 8 lines, `....[+N lines / N bytes, see rising2.log]....` between
+  * Limits that apply to the file too, so a flood of huge packets can't fill the disk: hex dumps stop at
+    `R2_LOG_HEX_MAX` bytes (4096), the readable line of a packet at 600 bytes, a SOAP body at 20000 characters.
 * GP password fields (`passenc` can be reversed) are shown as `<redacted>`.
 * Missing traffic is flagged too:
   * `[NO-DATA]` / `[NO-REPLY]`: a TCP client sent nothing within `R2_NO_DATA_WARN` seconds (default 10).
@@ -113,7 +120,7 @@ def on_player(report, player, row):
 * `player.keys` are the raw numbers the game sent; `row` is what the client reads.
 * Setting a new column name makes it available to the client too.
 * The file is **reloaded when you save it**: the log shows `[STATS] [RULES] RELOADED`. A syntax error keeps the previous rules and logs an ERROR.
-* To apply changed rules to games already played, run `python -m rising2.admin rebuild --yes`. It recomputes every player of the current season from that season's stored reports (add `--season <name>` for another season, `--all-seasons` for all) and writes a JSON backup first. Manual `set` changes are not replayed.
+* Changed rules count from the next match on. Games already played are not re-scored (match reports are only kept 7 days, for debugging).
 
 The default rules have three steps (what every report key means, with exe addresses:
 [docs/report_keys.md](docs/report_keys.md)):
@@ -160,8 +167,9 @@ Every season keeps its own stats, and a new season starts every player from zero
 * Every match session gets the current season when the game server starts it; its report
   counts for that season even if you switch seasons before the match ends.
 * The game only ever sees the current season: a player with no stats in it gets the
-  new-player row (Pvt, all zeros). Old seasons stay in the database; naming an old season
-  in `current.txt` again brings its stats back.
+  new-player row (Pvt, all zeros). Old seasons' player stats stay in the database; naming an old season
+  in `current.txt` again brings its stats back. Their raw report key totals (`player_key_totals`) are deleted
+  when the season changes.
 * Data from before seasons existed is season `preseason` (the database is migrated on the first start).
 * Example: `config/seasons/example-pistols.py`.
 
@@ -182,6 +190,7 @@ or who asked and with which filter.
 * A key counts as handled once `rules.py` reads it (`player.key(5)`, `player.keys[5]`, or looping over all keys).
 * Keys you decide not to use go in `IGNORED_KEYS`.
 * Once something is handled, delete its `.log` file. It only comes back if it is missing again.
+* The cleanup keeps the last 50 lines of each file and deletes files that have not been hit for 30 days.
 
 The same items are also in the main log as `[STATS] [MISSING] [WARN]` and on `/rising2/missing`.
 
@@ -212,7 +221,7 @@ docker compose exec rising2 python -m rising2.admin set <nick> Rank 3
 ```
 
 Other commands: `seasons`, `stats <nick>`, `add-xp <nick> <n>`, `reports`, `report <id>`, `keys [nick]`,
-`rebuild --yes [--all-seasons]`. Stats commands work on the current season; add `--season <name>` for another.
+`cleanup` (run every cleanup job now). Stats commands work on the current season; add `--season <name>` for another.
 
 JSON pages: `http://<server>/rising2/status` (includes the current `season` and every season with data),
 `/rising2/players[?season=S]`, `/rising2/reports`, `/rising2/report?id=N`, `/rising2/sessions`,
@@ -236,6 +245,45 @@ JSON pages: `http://<server>/rising2/status` (includes the current `season` and 
 | `R2_ENABLE_NATNEG_LOGGER` | `1` | listen on 27901 just to log |
 | `R2_MOTD` | `Welcome to Rising2` | message of the day |
 | `R2_PORT_*` | standard | `GPCM GPSP SB QR NATNEG CDKEY HTTP` |
+| `R2_LOG_HEX_MAX` | `4096` | bytes per hex dump (console and file) |
+| `R2_JOB_<NAME>_EVERY`, `R2_JOB_<NAME>_KEEP`, ... | see [Cleanup](#cleanup) | cleanup jobs |
+
+## Cleanup
+
+Everything the server writes that only piles up is deleted by cleanup jobs (`rising2/maintenance.py`).
+
+* **On every start all jobs run**, so restarting the container is a cleanup.
+* Then each job runs again on its own interval. When a job last ran is stored in the database
+  (`maintenance_runs`), so a job that came due while the server was asleep or stopped runs as soon as it is back.
+* `key_totals` also runs when the season changes.
+* Run them all by hand: `docker compose exec rising2 python -m rising2.admin cleanup`.
+* Each job logs a start line, one line per table or folder it cleaned, and an end line:
+
+```
+[CORE] [CLEANUP] [INFO] [#-] reports: start (startup) | every=1h keep=7d keep_failed=30d
+[CORE] [CLEANUP] [INFO] [#-] reports: comp_report_players: deleted 6 row(s)
+[CORE] [CLEANUP] [INFO] [#-] reports: comp_reports: deleted 3 row(s) | keep=7d keep_failed=30d
+[CORE] [CLEANUP] [INFO] [#-] reports: raw report files: deleted 6 file(s), 0.1 MB | folder=/data/reports
+[CORE] [CLEANUP] [INFO] [#-] reports: done in 0.01s: 9 row(s), 6 file(s) deleted
+```
+
+| Job | Every | Deletes |
+|---|---|---|
+| `logs` | 1h | rotated `rising2.log.N` files older than 14 days, then the oldest until all logs together are at most 200 MB (`MAX_MB`) |
+| `reports` | 1h | match reports (`comp_reports`, `comp_report_players`) and their `.bin` files older than 7 days; reports that failed to parse after 30 days (`KEEP_FAILED`) |
+| `missing` | 1h | `config/missing/` files not hit for 30 days; the others are cut to their last 50 lines (`LINES`) |
+| `handshake` | 1h | `comp_sessions`, `comp_intentions` older than 2 days (only needed until the match report arrives) |
+| `logins` | 1d | `logins` rows (login history) older than 30 days |
+| `key_totals` | 1d + season change | `player_key_totals` of every season except the current one |
+| `backups` | 1d | `*.bak` and old `player_stats_backup_*.json` files next to the databases, older than 30 days |
+| `vacuum` | 1d | shrinks `rising2_stats.db` (SQLite keeps deleted space otherwise). Runs at start, and later only once 1000 rows (`MIN_ROWS`) were deleted |
+
+Kept forever: accounts (`LoginDatabase.db3`), Sake records, and every season's player stats.
+
+Settings: `R2_JOB_<NAME>_<SETTING>`, e.g. `R2_JOB_REPORTS_KEEP=3d`, `R2_JOB_LOGS_EVERY=30m`, `R2_JOB_LOGS_MAX_MB=500`.
+Durations are `30s`, `10m`, `2h`, `7d` (a plain number is seconds). `R2_JOB_<NAME>_EVERY=0` turns a job off.
+
+Docker keeps its own copy of the console output; `docker-compose.yml` limits it to 5 files of 50 MB.
 
 ## Self test
 

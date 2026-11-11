@@ -38,15 +38,55 @@ def next_conn_id() -> int:
     return next(_conn_counter)
 
 
+# Console lines are shortened; the log file always gets the whole line.
+CONSOLE_MAX_TEXT = 1024   # characters of a message
+CONSOLE_MAX_HEX = 512     # bytes of a hex dump (16 per dump line)
+CONSOLE_KEEP_TEXT = 400   # characters kept at each end
+CONSOLE_KEEP_HEX_LINES = 8
+_HEX_LINE = re.compile(r"^    [0-9a-f]{4,}  ")
+
+
+def shorten_for_console(msg: str) -> str:
+    """'start ....[+N chars, see rising2.log].... end' for long messages; long hex dumps keep
+    their first and last lines. Hex dumps are judged by bytes, so a short dump stays whole."""
+    lines = msg.split("\n")
+    hex_idx = [i for i, ln in enumerate(lines) if _HEX_LINE.match(ln)]
+    if hex_idx:
+        if len(hex_idx) * 16 <= CONSOLE_MAX_HEX:
+            return msg
+        k = CONSOLE_KEEP_HEX_LINES
+        first, last = hex_idx[0], hex_idx[-1]
+        hidden = len(hex_idx) - 2 * k
+        head = lines[:first + k]
+        tail = lines[last - k + 1:]
+        return "\n".join(head + [f"    ....[+{hidden} lines / {hidden * 16} bytes, see rising2.log]...."] + tail)
+    if len(msg) <= CONSOLE_MAX_TEXT:
+        return msg
+    n = CONSOLE_KEEP_TEXT
+    return f"{msg[:n]} ....[+{len(msg) - 2 * n} chars, see rising2.log].... {msg[-n:]}"
+
+
+class ConsoleFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        full = record.getMessage()
+        short = shorten_for_console(full)
+        if short is full:
+            return super().format(record)
+        copy = logging.makeLogRecord(record.__dict__)
+        copy.msg, copy.args = short, None
+        return super().format(copy)
+
+
 def setup(console_level: str | None = None) -> None:
-    fmt = logging.Formatter("%(asctime)s.%(msecs)03d %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    datefmt = "%Y-%m-%d %H:%M:%S"
+    fmt = logging.Formatter("%(asctime)s.%(msecs)03d %(message)s", datefmt=datefmt)
     root = logging.getLogger()
     root.setLevel(getattr(logging, Config.LOG_LEVEL.upper(), logging.DEBUG))
     for h in list(root.handlers):
         root.removeHandler(h)
 
     sh = logging.StreamHandler(sys.stdout)
-    sh.setFormatter(fmt)
+    sh.setFormatter(ConsoleFormatter("%(asctime)s.%(msecs)03d %(message)s", datefmt=datefmt))
     if console_level:
         sh.setLevel(_LEVELS.get(console_level, logging.WARNING))
     root.addHandler(sh)
@@ -55,7 +95,8 @@ def setup(console_level: str | None = None) -> None:
         os.makedirs(Config.LOG_DIR, exist_ok=True)
         fh = logging.handlers.RotatingFileHandler(
             os.path.join(Config.LOG_DIR, "rising2.log"),
-            maxBytes=50 * 1024 * 1024, backupCount=10, encoding="utf-8",
+            maxBytes=50 * 1024 * 1024, backupCount=100,  # old files: maintenance 'logs' job
+            encoding="utf-8",
         )
         fh.setFormatter(fmt)
         root.addHandler(fh)

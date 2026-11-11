@@ -2,8 +2,7 @@
 Rising2 stats rules - THE place where match reports become player stats.
 
 This file is reloaded automatically when you save it (no restart needed).
-To apply changed rules to games that were already played:
-    docker compose exec rising2 python -m rising2.admin rebuild --yes
+Changed rules count from the next match on; games already played are not re-scored.
 
 How it works
 ------------

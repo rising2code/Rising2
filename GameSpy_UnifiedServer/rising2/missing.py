@@ -8,7 +8,8 @@ don't know what to do with. A missing stat only appends one line to its file.
   sake_table_<table>.log         table the game client asked for that has no data at all
 
 Delete a file (or the whole folder) once handled; it is recreated only if the
-stat shows up as missing again.
+stat shows up as missing again. The 'missing' cleanup job keeps the last lines of
+each file and deletes files that have not been hit for a while (rising2/maintenance.py).
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ import time
 
 from . import log
 from .config import Config
+from .maintenance import trim_lines
 
 _SAFE = re.compile(r"[^A-Za-z0-9_.-]")
 MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -47,9 +49,8 @@ class MissingTracker:
         path = os.path.join(self.dir, item + ".log")
         try:
             new_file = not os.path.exists(path)
-            if not new_file and os.path.getsize(path) > MAX_FILE_BYTES:
-                os.replace(path, path + ".old")
-                new_file = True
+            if not new_file and os.path.getsize(path) > MAX_FILE_BYTES:  # flood guard between cleanup runs
+                trim_lines(path, 50)
             with open(path, "a", encoding="utf-8") as f:
                 if new_file:
                     f.write(f"# {kind} '{name}'\n# impact: {impact}\n# one line per occurrence, newest last\n")

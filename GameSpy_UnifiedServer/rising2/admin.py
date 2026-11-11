@@ -8,12 +8,7 @@
   python -m rising2.admin reports [N]
   python -m rising2.admin report <id>
   python -m rising2.admin keys [nick]                     raw report key totals per player
-  python -m rising2.admin rebuild --yes                   wipe the season's player stats and re-run its rules
-                                                          (config/rules.py + config/seasons/<season>.py)
-                                                          over every stored report of that season (oldest first).
-                                                          A JSON backup of the old stats is written first;
-                                                          manual 'set' / 'add-xp' changes are NOT replayed.
-  python -m rising2.admin rebuild --yes --all-seasons     the same for every season
+  python -m rising2.admin cleanup                         run every cleanup job now (see rising2/maintenance.py)
 
 Stats commands work on the CURRENT season (config/seasons/current.txt); add
 --season <name> to any of them for another season.
@@ -28,10 +23,9 @@ import sys
 import time
 
 from . import log
-from .config import Config
 from .db import Databases
 from .missing import MissingTracker
-from .rules_engine import Rules, apply_report
+from .rules_engine import Rules
 from .stats import player_row
 
 
@@ -54,35 +48,6 @@ def _int(v) -> int:
         return int(v)
     except (TypeError, ValueError):
         return 0
-
-
-def _report_players(ctx, rid: int) -> list[dict]:
-    players = []
-    for p in ctx.db.stats.q("SELECT * FROM comp_report_players WHERE report_id=? ORDER BY idx", (rid,)):
-        keys = {int(d["key"]): d["value"] for d in json.loads(p["keys_json"] or "[]")}
-        players.append({"idx": p["idx"], "ccid": p["ccid"], "profileid": p["profileid"], "nick": p["nick"],
-                        "team": p["team"], "result": p["result"], "keys": keys})
-    return players
-
-
-def rebuild(ctx, season: str) -> None:
-    st = ctx.db.stats
-    old = st.q("SELECT * FROM player_stats WHERE season=?", (season,))
-    backup = os.path.join(os.path.dirname(os.path.abspath(Config.STATS_DB)),
-                          f"player_stats_backup_{season}_{time.strftime('%Y%m%d-%H%M%S')}.json")
-    with open(backup, "w", encoding="utf-8") as f:
-        json.dump(old, f, indent=1)
-    print(f"season '{season}': backup of {len(old)} player row(s): {backup}")
-    st.x("DELETE FROM player_stats WHERE season=?", (season,))
-    reports = st.q("SELECT id, parsed_json FROM comp_reports WHERE parse_ok=1 AND season=? ORDER BY id", (season,))
-    for r in reports:
-        apply_report(ctx, r["id"], json.loads(r["parsed_json"]), _report_players(ctx, r["id"]), season,
-                     record_missing=False)
-    mod = ctx.rules.get(season)
-    used = ctx.rules.path + (f" + {mod.SEASON_FILE}" if getattr(mod, "SEASON_FILE", None) else "")
-    log.event("STATS", "REBUILD", "INFO", f"season '{season}': player stats rebuilt from {len(reports)} report(s) "
-              f"with {used}", season=season, backup=backup)
-    print(f"season '{season}': rebuilt from {len(reports)} report(s) using {used}")
 
 
 def main(argv: list[str]) -> int:
@@ -148,15 +113,9 @@ def main(argv: list[str]) -> int:
         print(json.dumps(r, indent=2, default=str))
         for p in ctx.db.stats.q("SELECT * FROM comp_report_players WHERE report_id=?", (args[0],)):
             print(json.dumps(p, indent=2))
-    elif cmd == "rebuild":
-        every = "--all-seasons" in args
-        if "--yes" not in args:
-            print(f"This replaces the player stats of {'EVERY season' if every else f'season {season!r}'} with a "
-                  "fresh run of the rules over that season's stored reports.\n"
-                  "Manual set/add-xp changes are lost (a JSON backup is written). Run again with --yes.")
-            return 1
-        for s in ([r["season"] for r in ctx.db.stats.seasons()] if every else [season]):
-            rebuild(ctx, s)
+    elif cmd == "cleanup":
+        from .maintenance import Maintenance
+        Maintenance(ctx).run_all("admin")
     elif cmd == "keys":
         sql, a = "SELECT * FROM player_key_totals WHERE season=?", (season,)
         if args:

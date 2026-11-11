@@ -4,6 +4,13 @@ services:
     image: rising2/gamespy-unified:latest
     container_name: rising2-gamespy
     restart: unless-stopped
+
+    # Docker's own copy of the console output: at most 5 files of 50 MB
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     
     # Linux host: host networking, so the server sees the real source IP of
     # every game server and player (needed for the server list).
@@ -34,3 +41,7 @@ services:
       R2_LOG_LEVEL: DEBUG          # DEBUG = hex dumps + full SOAP bodies, INFO = one line per event
       # R2_SB_OVERRIDE_SERVER_IP: 203.0.113.10
       # R2_MOTD: "Welcome to Rising2"
+      # Cleanup jobs (README "Cleanup"): R2_JOB_<NAME>_EVERY / _KEEP, e.g.
+      # R2_JOB_REPORTS_KEEP: 7d
+      # R2_JOB_LOGINS_KEEP: 30d
+      # R2_JOB_LOGS_MAX_MB: 200

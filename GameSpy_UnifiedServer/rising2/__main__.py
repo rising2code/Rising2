@@ -16,6 +16,7 @@ from .qr2 import Qr2Service
 from .sb import SbSession
 from .missing import MissingTracker
 from .rules_engine import Rules
+from .maintenance import Maintenance
 
 BANNER = r"""
  ____  _     _             ____
@@ -33,6 +34,7 @@ class App:
         self.rules = Rules()
         self.missing = MissingTracker()
         self.qr2 = Qr2Service(self)
+        self.maintenance = Maintenance(self)
 
 
 async def main() -> int:
@@ -63,6 +65,7 @@ async def main() -> int:
 
     asyncio.create_task(app.qr2.cleanup_loop())
     asyncio.create_task(app.qr2.summary_loop())
+    asyncio.create_task(app.maintenance.loop())  # cleanup jobs: all at startup, then each on its interval
 
     if failures:
         log.event("CORE", "READY", "ERROR", f"started WITH FAILURES: {', '.join(failures)} could not bind")

@@ -112,7 +112,7 @@ def submit_report(op: Node, ctx, ip: str, raw_body: bytes, content_type: str, ce
     rid = st.x("INSERT INTO comp_reports (csid, ccid, received, submitter_ip, authoritative, raw_file, raw_size, season) "
                "VALUES (?,?,?,?,?,?,?,?)",
                (csid, ccid, int(time.time()), ip, 1 if auth in ("1", "true") else 0,
-                raw_name + ".report.bin" if report_bytes is not None else None,
+                raw_name + (".report.bin" if report_bytes is not None else ".http_body.bin"),
                 len(report_bytes) if report_bytes is not None else None, season))
     log.event("COMP", "SUBMITREPORT", "INFO", "report received" + ("" if sess else " (unknown session: current season)"),
               user=cert_nick, ip=ip, report=rid, season=season, csid=csid, ccid=ccid, authoritative=auth,

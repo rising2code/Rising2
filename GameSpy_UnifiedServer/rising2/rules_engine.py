@@ -118,13 +118,12 @@ class Rules:
         except Exception as e:
             self._modules[season] = (sig, previous)  # don't retry until a file changes again
             keep = "keeping the previously loaded rules" if previous else \
-                "NO rules active: reports are stored but stats are not updated (fix it, then run admin rebuild)"
+                "NO rules active: reports are stored but stats are not updated (fix it; reports that arrive meanwhile are not counted)"
             log.event("STATS", "RULES", "ERROR", f"rules for season '{season}' failed to load ({' + '.join(files)}): "
                       f"{e!r} - {keep}\n{traceback.format_exc()}")
 
 
-def apply_report(ctx, report_id: int, parsed: dict, players: list[dict], season: str,
-                 record_missing: bool = True) -> None:
+def apply_report(ctx, report_id: int, parsed: dict, players: list[dict], season: str) -> None:
     """players: [{idx, ccid, profileid, nick, team, result, keys:{id:value}}]. Stats go to `season`."""
     rules = ctx.rules.get(season)
     if not hasattr(rules, "on_player"):
@@ -177,8 +176,7 @@ def apply_report(ctx, report_id: int, parsed: dict, players: list[dict], season:
                       user=row.get("PlayerUnickName"), season=season, profileid=pid,
                       total_skill=row.get("TotalSkill"))
 
-    if record_missing:
-        _record_missing(ctx, rules, rv, parsed)
+    _record_missing(ctx, rules, rv, parsed)
 
 
 def _record_missing(ctx, rules, rv: ReportView, parsed: dict) -> None:

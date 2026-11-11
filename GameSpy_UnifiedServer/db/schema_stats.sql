@@ -118,3 +118,12 @@ CREATE TABLE IF NOT EXISTS logins (
 );
 CREATE INDEX IF NOT EXISTS ix_logins_ticket ON logins(ticket);
 CREATE INDEX IF NOT EXISTS ix_logins_ip ON logins(ip);
+CREATE INDEX IF NOT EXISTS ix_logins_created ON logins(created);
+
+-- When each cleanup job (rising2/maintenance.py) last ran, so a job that came due
+-- while the server was asleep or stopped runs as soon as it is back.
+CREATE TABLE IF NOT EXISTS maintenance_runs (
+    job         TEXT PRIMARY KEY,
+    last_run    INTEGER NOT NULL,
+    last_result TEXT
+);

@@ -114,7 +114,7 @@ The default rules give XP per match plus a win bonus, count `TotalSessions` and
 
 ### What's missing: `config/missing/`
 
-Check this folder after a game; `_SUMMARY.txt` lists everything at a glance.
+Check this folder after a game: every file in it is one stat that needs attention.
 
 | File | Meaning |
 |---|---|

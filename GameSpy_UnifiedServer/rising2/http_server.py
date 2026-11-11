@@ -152,7 +152,7 @@ class HttpSession(TcpSession):
             data = {"sessions": st.q("SELECT * FROM comp_sessions ORDER BY created DESC LIMIT 100"),
                     "intentions": st.q("SELECT * FROM comp_intentions ORDER BY id DESC LIMIT 300")}
         elif lpath == "/rising2/missing":
-            data = {"folder": self.ctx.missing.dir, "items": self.ctx.missing.state}
+            data = {"folder": self.ctx.missing.dir, "items": self.ctx.missing.items()}
         elif lpath == "/rising2/keys":
             data = st.q("SELECT * FROM player_key_totals ORDER BY profileid, key_id")
         else:

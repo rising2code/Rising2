@@ -1,5 +1,5 @@
 """config/missing/: one .log file per stat we received or were asked for but
-don't know what to do with, plus _SUMMARY.txt with all of them at a glance.
+don't know what to do with. A missing stat only appends one line to its file.
 
   report_key_<id>.log            player key in a match report that config/rules.py never reads
   report_game_key_<id>.log       game-wide key in a report that rules.py never reads
@@ -12,7 +12,6 @@ stat shows up as missing again.
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import time
@@ -31,22 +30,16 @@ class MissingTracker:
             directory = os.path.join(os.path.dirname(os.path.abspath(rules_path())), "missing")
         self.dir = directory or Config.MISSING_DIR
         self.enabled = True
-        self.state_path = os.path.join(self.dir, "_summary.json")
-        self.state: dict[str, dict] = {}
         try:
             os.makedirs(self.dir, exist_ok=True)
-            if os.path.exists(self.state_path):
-                with open(self.state_path, encoding="utf-8") as f:
-                    self.state = json.load(f)
-            log.event("CORE", "MISSING", "INFO", f"missing-stat files go to {self.dir}", known=len(self.state))
-        except (OSError, ValueError) as e:
+            log.event("CORE", "MISSING", "INFO", f"missing-stat files go to {self.dir}")
+        except OSError as e:
             log.event("CORE", "MISSING", "ERROR", f"cannot use {self.dir}: {e} - missing stats only in the main log")
             self.enabled = False
 
     def note(self, kind: str, name: str, impact: str, **context) -> None:
         """kind: report_key / report_game_key / report_team_key / sake_column / sake_table"""
         item = f"{kind}_{_SAFE.sub('_', str(name))}"
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
         ctx = " ".join(f"{k}={v}" for k, v in context.items() if v is not None and v != "")
         log.event("STATS", "MISSING", "WARN", f"{kind} '{name}': {impact}", file=f"missing/{item}.log", **context)
         if not self.enabled:
@@ -60,36 +53,25 @@ class MissingTracker:
             with open(path, "a", encoding="utf-8") as f:
                 if new_file:
                     f.write(f"# {kind} '{name}'\n# impact: {impact}\n# one line per occurrence, newest last\n")
-                f.write(f"{now}  {ctx}\n")
-            if new_file:
-                self.state.pop(item, None)  # file was deleted (handled) or rotated: start counting again
-            st = self.state.setdefault(item, {"kind": kind, "name": str(name), "impact": impact,
-                                              "first_seen": now, "count": 0})
-            st["count"] += 1
-            st["last_seen"] = now
-            st["last_example"] = ctx
-            st["impact"] = impact
-            self._write_summary()
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {ctx}\n")
         except OSError as e:
             log.event("STATS", "MISSING", "ERROR", f"could not write {path}: {e}")
 
-    def _write_summary(self) -> None:
-        # forget items whose .log file was deleted by the user (= handled)
-        for item in list(self.state):
-            if not os.path.exists(os.path.join(self.dir, item + ".log")):
-                del self.state[item]
-        with open(self.state_path, "w", encoding="utf-8") as f:
-            json.dump(self.state, f, indent=1, sort_keys=True)
-        lines = [
-            "Rising2 - stats we don't know what to do with yet",
-            f"updated {time.strftime('%Y-%m-%d %H:%M:%S')}   ({len(self.state)} item(s))",
-            "Handle them in config/rules.py (or IGNORED_*), then delete the .log file.",
-            "",
-            f"{'item':<44} {'count':>6}  {'first seen':<19}  {'last seen':<19}  impact / last example",
-            "-" * 140,
-        ]
-        for item, st in sorted(self.state.items()):
-            lines.append(f"{item:<44} {st['count']:>6}  {st['first_seen']:<19}  {st['last_seen']:<19}  {st['impact']}")
-            lines.append(f"{'':<44} {'':>6}  {'':<19}  {'':<19}  e.g. {st.get('last_example', '')}")
-        with open(os.path.join(self.dir, "_SUMMARY.txt"), "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
+    def items(self) -> dict[str, dict]:
+        """Current missing items, read from the folder (for /rising2/missing)."""
+        out: dict[str, dict] = {}
+        try:
+            names = sorted(n for n in os.listdir(self.dir) if n.endswith(".log"))
+        except OSError:
+            return out
+        for n in names:
+            try:
+                with open(os.path.join(self.dir, n), encoding="utf-8") as f:
+                    lines = [ln.rstrip("\n") for ln in f if ln.strip()]
+            except OSError:
+                continue
+            entries = [ln for ln in lines if not ln.startswith("#")]
+            impact = next((ln[len("# impact: "):] for ln in lines if ln.startswith("# impact: ")), "")
+            out[n[:-4]] = {"count": len(entries), "impact": impact,
+                           "first": entries[0] if entries else None, "last": entries[-1] if entries else None}
+        return out

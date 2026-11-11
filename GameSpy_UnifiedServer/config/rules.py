@@ -38,7 +38,7 @@ Missing stats
 Every report key that this file never reads (and that is not in IGNORED_KEYS)
 is written to config/missing/report_key_<id>.log after each match, and every
 column the client asks for that no row has is written to
-config/missing/sake_column_<table>.<column>.log. See config/missing/_SUMMARY.txt.
+config/missing/sake_column_<table>.<column>.log.
 """
 from rising2.rules_api import add, keep_max, keep_min, rank_from_xp  # noqa: F401
 

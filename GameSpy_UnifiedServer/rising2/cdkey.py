@@ -11,7 +11,7 @@ import re
 
 from . import gs_crypto as gc
 from . import log
-from .net import UdpService
+from .net import UdpService, check_nat
 
 # [A-z] (not [A-Za-z]) on purpose: identical to the C# regex, which also allows []^_`
 _AUTH = re.compile(
@@ -27,8 +27,10 @@ def _kv(s: str) -> dict[str, str]:
 class CdKeyService(UdpService):
     SERVICE = "CDKEY"
 
-    def datagram_received(self, data: bytes, addr) -> None:
+    def receive(self, data: bytes, addr) -> None:
         # Log decrypted text instead of the XORed bytes (raw hex still logged at DEBUG).
+        check_nat("CDKEY", addr[0])
+        self._check_retry(data, addr)
         try:
             text = gc.xor_gamespy(data).decode("latin-1")
         except Exception:
@@ -65,6 +67,7 @@ class CdKeyService(UdpService):
     def send_plain(self, text: str, addr) -> None:
         log.event("CDKEY", "SEND", "INFO", f"plain: {text}", ip=addr)
         self.transport.sendto(gc.xor_gamespy(text.encode("latin-1")), addr)
+        self.mark_answered(addr)
 
 
 def _int_ip(s: str) -> str:

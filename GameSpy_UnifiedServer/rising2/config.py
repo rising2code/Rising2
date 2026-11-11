@@ -40,6 +40,8 @@ class Config:
     LOG_HEX = _env_bool("R2_LOG_HEX", True)          # hex dump every packet
     LOG_HEX_MAX = _env_int("R2_LOG_HEX_MAX", 4096)    # bytes per dump
     LOG_HTTP_BODY = _env_bool("R2_LOG_HTTP_BODY", True)
+    # warn when a TCP client connected but has not sent a byte after this many seconds (0 = off)
+    NO_DATA_WARN = _env_int("R2_NO_DATA_WARN", 10)
 
     GAMENAME = _env("R2_GAMENAME", "risingeaglepc")
     SECRET_KEY = _env("R2_SECRET_KEY", "9cy8vc")

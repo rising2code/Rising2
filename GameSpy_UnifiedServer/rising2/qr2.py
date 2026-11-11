@@ -206,6 +206,10 @@ class Qr2Service(UdpService):
     def listed_servers(self) -> list[GameServer]:
         return [s for s in self.servers.values() if s.valid]
 
+    def server_conn(self, srv: GameServer) -> int | None:
+        """Log number of a game server's UDP address (lines from timers have no packet context)."""
+        return self._peer_ids.get((srv.ip, srv.query_port))
+
     async def cleanup_loop(self) -> None:
         while True:
             await asyncio.sleep(10)
@@ -213,11 +217,13 @@ class Qr2Service(UdpService):
             for key, srv in list(self.servers.items()):
                 if srv.last_ping < limit:
                     log.event("QR2", "EXPIRED", "INFO",
-                              f"removed: no heartbeat/keep-alive for {Config.QR_SERVER_TIMEOUT}s", user=srv.name, ip=key)
+                              f"removed: no heartbeat/keep-alive for {Config.QR_SERVER_TIMEOUT}s", user=srv.name, ip=key,
+                              conn=self.server_conn(srv))
                     del self.servers[key]
             for key, srv in list(self.pending.items()):
                 if srv.first_seen < time.time() - 120:
-                    log.event("QR2", "EXPIRED", "WARN", "never answered the challenge, dropped", user=srv.name, ip=key)
+                    log.event("QR2", "EXPIRED", "WARN", "never answered the challenge, dropped", user=srv.name, ip=key,
+                              conn=self.server_conn(srv))
                     del self.pending[key]
 
     async def summary_loop(self) -> None:
@@ -227,6 +233,6 @@ class Qr2Service(UdpService):
                       f"{len(self.pending)} waiting for challenge")
             for s in self.servers.values():
                 log.event("QR2", "SUMMARY", "INFO", "listed" if s.valid else "not listed", user=s.name, ip=s.key,
-                          map=s.keys.get("mapname"), players=f"{s.keys.get('numplayers', '?')}/{s.keys.get('maxplayers', '?')}",
+                          conn=self.server_conn(s), map=s.keys.get("mapname"), players=f"{s.keys.get('numplayers', '?')}/{s.keys.get('maxplayers', '?')}",
                           hostport=s.keys.get("hostport"))
 

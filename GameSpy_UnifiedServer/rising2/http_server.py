@@ -21,7 +21,7 @@ class HttpSession(TcpSession):
     SERVICE = "HTTP"
 
     async def run(self) -> None:  # own loop: request/response, not a stream
-        self.ev("CONNECT", "DEBUG", "new HTTP connection")
+        self._connected()
         try:
             while not self.closed:
                 try:
@@ -30,6 +30,7 @@ class HttpSession(TcpSession):
                     if not isinstance(e, (ConnectionError,)) and getattr(e, "partial", b""):
                         self.ev("RECV", "WARN", f"incomplete HTTP header: {log.printable(e.partial)}")
                     break
+                self.note_recv(len(head))
                 lines = head.decode("latin-1").split("\r\n")
                 try:
                     method, target, version = lines[0].split(" ", 2)
@@ -56,6 +57,7 @@ class HttpSession(TcpSession):
                         self.ev("RECV", "ERROR", f"body too large ({n})")
                         break
                     body = await self.reader.readexactly(n)
+                self.note_recv(len(body))
                 keep = version.upper() == "HTTP/1.1" and headers.get("connection", "").lower() != "close"
                 await self.handle(method, target, version, headers, body)
                 if not keep:
@@ -66,7 +68,7 @@ class HttpSession(TcpSession):
                 self.writer.close()
             except Exception:
                 pass
-            self.ev("CLOSED", "DEBUG", "HTTP connection finished")
+            self._finished()
 
     async def reply(self, status: int, body: bytes, ctype: str = "text/xml; charset=utf-8", note: str = "") -> None:
         reason = {200: "OK", 404: "Not Found", 500: "Internal Server Error", 400: "Bad Request"}.get(status, "OK")
@@ -78,6 +80,8 @@ class HttpSession(TcpSession):
         try:
             self.writer.write(head + body)
             await self.writer.drain()
+            self.bytes_out += len(head) + len(body)
+            self.sends += 1
         except (ConnectionError, OSError) as e:
             self.ev("SEND", "ERROR", f"send failed: {e!r}")
             self.closed = True

@@ -59,10 +59,51 @@ XP_WIN = 20
 XP_DRAW = 5
 XP_LOSS = 0
 
-# [xp needed, Rank value]. The game guide says ranks go from Private to Major; the
-# exact numbers the client expects are a guess - try them with
-#   python -m rising2.admin set <nick> Rank <n>
-RANK_THRESHOLDS = [(0, 1), (100, 2), (250, 3), (500, 4), (1000, 5), (2000, 6), (4000, 7), (8000, 8)]
+# ----------------------------------------------------------------------------
+# RANK LADDER
+#
+# The Rank value is what the client shows; the labels come from RisingEagle.exe.
+# The thresholds are OUR estimate (scaled to a 2008 leader board), not the original.
+#
+#   Rank  Label                 Needs
+#   ----  --------------------  ---------------------------------------------------
+#    0    Pvt  Private          nothing (every new player)
+#    1    PFC  Private 1st Cl.  TotalSkill >=  1,000
+#    2    Cpl  Corporal         TotalSkill >=  5,000
+#    3    Sgt  Sergeant         TotalSkill >= 15,000
+#    4    GS   Gunnery Sergeant TotalSkill >= 30,000
+#    5    MC   Master Chief     TotalSkill >= 50,000
+#    6    Lt   Lieutenant       MC  + SkillBySquadLeader   >= 10,000
+#    7    Cpt  Captain          MC  + SkillBySquadLeader   >= 25,000
+#    8    Mjr  Major            Cpt + SkillByPlatoonLeader >= 50,000
+#
+# Enlisted ranks (0-5) only look at general skill (TotalSkill).
+# Officer ranks: squad leading gets you to Lt and Cpt; only platoon leading makes
+# a Captain a Major. SkillBySquadLeader / SkillByPlatoonLeader stay 0 until a report
+# key is mapped to them in on_player(), so until then nobody gets past MC.
+# Rank is recomputed after every match, so it can also go down if skill drops.
+# ----------------------------------------------------------------------------
+RANK_THRESHOLDS = [(0, 0), (1000, 1), (5000, 2), (15000, 3), (30000, 4), (50000, 5)]   # (TotalSkill, Rank)
+MASTER_CHIEF, LIEUTENANT, CAPTAIN, MAJOR = 5, 6, 7, 8
+LT_SQUAD_SKILL = 10000       # SkillBySquadLeader needed for Lt
+CPT_SQUAD_SKILL = 25000      # SkillBySquadLeader needed for Cpt
+MJR_PLATOON_SKILL = 50000    # SkillByPlatoonLeader needed for Mjr (on top of being Cpt)
+
+
+def compute_rank(row):
+    """Rank value (0-8) from the row's skills - see the RANK LADDER table above."""
+    rank = rank_from_xp(row.get("TotalSkill", 0), RANK_THRESHOLDS)
+    if rank < MASTER_CHIEF:
+        return rank
+    squad = row.get("SkillBySquadLeader", 0) or 0
+    platoon = row.get("SkillByPlatoonLeader", 0) or 0
+    if squad >= LT_SQUAD_SKILL:
+        rank = LIEUTENANT
+    if squad >= CPT_SQUAD_SKILL:
+        rank = CAPTAIN
+    if rank == CAPTAIN and platoon >= MJR_PLATOON_SKILL:
+        rank = MAJOR
+    return rank
 
 
 def on_player(report, player, row):
@@ -85,8 +126,11 @@ def on_player(report, player, row):
     # if row["HeadShotKills"] >= 100:
     #     row["MasterSniperAward"] = 1                      # award if the client doesn't do it itself
 
+    # add(row, "SkillBySquadLeader", player.key(10))       # -> Lt / Cpt (see RANK LADDER)
+    # add(row, "SkillByPlatoonLeader", player.key(11))     # -> Mjr
+
     add(row, "TotalSkill", xp)
-    row["Rank"] = rank_from_xp(row["TotalSkill"], RANK_THRESHOLDS)
+    row["Rank"] = compute_rank(row)
 
 
 def on_report(report, rows):

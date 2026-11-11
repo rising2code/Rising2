@@ -94,7 +94,10 @@ def main(argv: list[str]) -> int:
         else:
             rules = ctx.rules.get()
             row["TotalSkill"] = int(row.get("TotalSkill", 0)) + int(args[1])
-            row["Rank"] = rank_from_xp(row["TotalSkill"], getattr(rules, "RANK_THRESHOLDS", [(0, 1)]))
+            if hasattr(rules, "compute_rank"):
+                row["Rank"] = rules.compute_rank(row)
+            else:
+                row["Rank"] = rank_from_xp(row["TotalSkill"], getattr(rules, "RANK_THRESHOLDS", [(0, 0)]))
         ctx.db.stats.put_stats(u["profileid"], u["name"], row)
         log.event("STATS", "ADMIN", "INFO", f"manual change: {' '.join(argv)}", user=u["name"], profileid=u["profileid"])
         print(json.dumps(row, indent=2))

@@ -62,17 +62,24 @@ Every connection, packet and HTTP request produces a log line, written before it
 is parsed. **No log line means nothing reached the server.**
 
 ```
-<time> [Service] [Action] [LEVEL] what happened | user=<player or server name> ip=<source ip:port> | other targets
-2026-11-11 19:11:56.429 [GPCM] [LOGIN] [INFO] login accepted | user=alice ip=10.0.0.5:1370 | conn=5 profileid=100000001 sesskey=30592
-2026-11-11 19:11:56.479 [QR2] [REGISTERED] [INFO] challenge answered, server registered and listed | user=My Server ip=10.0.0.9:29023
-2026-11-11 19:11:57.102 [COMP] [PLAYER] [INFO] #0 team=1 result=WIN matched_by=certificate | user=alice | report=1 profileid=100000001 keys=5(INT32)=7 ...
-2026-11-11 19:11:57.110 [STATS] [RANKUP] [INFO] rank changed 1 -> 2 | user=alice | profileid=100000001 xp=120
+<time> [Service] [Action] [LEVEL] [#conn] what happened | user=<player or server name> ip=<source ip:port> | other targets
+2026-11-11 19:11:56.429 [GPCM] [LOGIN] [INFO] [#5] login accepted | user=alice ip=10.0.0.5:1370 | profileid=100000001 sesskey=30592
+2026-11-11 19:11:56.479 [QR2] [REGISTERED] [INFO] [#9] challenge answered, server registered and listed | user=My Server ip=10.0.0.9:29023
+2026-11-11 19:11:57.102 [COMP] [PLAYER] [INFO] [#24] #0 team=1 result=WIN matched_by=certificate | user=alice | report=1 profileid=100000001 keys=5(INT32)=7 ...
+2026-11-11 19:11:57.110 [STATS] [RANKUP] [INFO] [#24] rank changed 1 -> 2 | user=alice | profileid=100000001 xp=120
 ```
 
+* `[#N]` is the connection number, so `grep '\[#24\]'` shows everything about one connection.
+  * TCP: one number per connection. Lines written while handling it carry it too, e.g. the stats lines of the report that HTTP connection delivered.
+  * UDP: one number per remote ip:port. A `[PEER]` line announces it the first time the address sends.
+  * `[#-]`: not tied to a connection (startup, timers).
 * `R2_LOG_LEVEL=DEBUG` (default) adds hex dumps of every packet and the full SOAP request/response bodies.
 * `R2_LOG_LEVEL=INFO` gives one line per event.
 * GP password fields (`passenc` can be reversed) are shown as `<redacted>`.
-* `conn=N` ties together all lines of one TCP connection.
+* Missing traffic is flagged too:
+  * `[NO-DATA]` / `[NO-REPLY]`: a TCP client sent nothing within `R2_NO_DATA_WARN` seconds (default 10).
+  * `[RETRY]`: a UDP client re-sent a packet we had already answered.
+  * `[CORE] [NAT]`: traffic is arriving through Docker's NAT gateway.
 
 ## How rank gets saved
 
@@ -109,8 +116,31 @@ def on_player(report, player, row):
 * To apply changed rules to games already played, run `python -m rising2.admin rebuild --yes`. It recomputes every player from all stored reports and writes a JSON backup first. Manual `set` changes are not replayed.
 
 The default rules give XP per match plus a win bonus, count `TotalSessions` and
-`SessionsWon`, and set `Rank` from `RANK_THRESHOLDS`. The rank values 1..8 are a guess
-(the guide only says Private → Major); try values with `admin set <nick> Rank <n>`.
+`SessionsWon`, and set `Rank` with `compute_rank(row)`.
+
+The Rank values are the client's own labels (read from `RisingEagle.exe`):
+
+| Rank | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|---|
+| Label | Pvt | PFC | Cpl | Sgt | GS | MC | Lt | Cpt | Mjr |
+
+The thresholds are our own estimate, scaled to a 2008 leader board:
+
+| Rank | Needs |
+|---|---|
+| Pvt | 0 general skill (`TotalSkill`) |
+| PFC | 1,000 |
+| Cpl | 5,000 |
+| Sgt | 15,000 |
+| GS | 30,000 |
+| MC | 50,000 |
+| Lt | MC plus 10,000 `SkillBySquadLeader` |
+| Cpt | MC plus 25,000 `SkillBySquadLeader` |
+| Mjr | Cpt plus 50,000 `SkillByPlatoonLeader` |
+
+Squad leading gets you to Lt and Cpt; only platoon leading makes a Captain a Major.
+Both leader skills stay 0 until report keys are mapped to them, so until then nobody
+gets past MC. The same table is at the top of `config/rules.py`.
 
 ### What's missing: `config/missing/`
 

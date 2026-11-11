@@ -2,9 +2,13 @@
 
 Line format (fields that are unknown are simply left out):
 
-  2026-11-11 21:03:44.120 [GPCM] [LOGIN] [INFO] login accepted | user=Bob ip=10.0.0.5:51234 | profileid=100000001 sesskey=4242
+  2026-11-11 21:03:44.120 [GPCM] [LOGIN] [INFO] [#5] login accepted | user=Bob ip=10.0.0.5:51234 | profileid=100000001 sesskey=4242
 
-  [Service] [Action] [LEVEL] context text | {user/server name} {source ip} | {other targets}
+  [Service] [Action] [LEVEL] [#conn] context text | {user/server name} {source ip} | {other targets}
+
+[#conn] is the connection number: one per TCP connection (also inherited by
+everything done while handling it, e.g. a SubmitReport's stats lines), one per
+remote ip:port for UDP. [#-] = not tied to a connection (startup, timers).
 
 Rule of thumb for this server: if something reached a socket, there is a log
 line for it. Raw bytes are logged *before* any parsing so a malformed packet
@@ -12,6 +16,7 @@ still shows up.
 """
 from __future__ import annotations
 
+import contextvars
 import itertools
 import logging
 import logging.handlers
@@ -23,6 +28,10 @@ from .config import Config
 
 _conn_counter = itertools.count(1)
 _log = logging.getLogger("rising2")
+
+# Connection number of the code that is running right now. Set per TCP
+# connection task / per UDP packet; asyncio copies it into child tasks.
+current_conn: contextvars.ContextVar = contextvars.ContextVar("rising2_conn", default=None)
 
 
 def next_conn_id() -> int:
@@ -68,8 +77,13 @@ def peer(addr) -> str:
     return f"{addr[0]}:{addr[1]}"
 
 
+def _conn_tag(conn) -> str:
+    c = conn if conn is not None else current_conn.get()
+    return f"[#{c}]" if c is not None else "[#-]"
+
+
 def event(service: str, action: str, level: str, text: str = "",
-          user: str | None = None, ip=None, **targets) -> None:
+          user: str | None = None, ip=None, conn=None, **targets) -> None:
     """Main logging call.
 
     service : GPCM, GPSP, QR2, SB, CDKEY, NATNEG, HTTP, AUTH, SAKE, COMP, STATS, CORE
@@ -77,6 +91,7 @@ def event(service: str, action: str, level: str, text: str = "",
     level   : DEBUG / INFO / WARN / ERROR
     user    : player nick or game-server name if known
     ip      : "1.2.3.4:5678" or an (ip, port) tuple
+    conn    : connection number; default = the one of the running connection
     targets : any other context (profileid=..., csid=..., table=...)
     """
     lvl = _LEVELS.get(level, logging.INFO)
@@ -84,7 +99,7 @@ def event(service: str, action: str, level: str, text: str = "",
         return
     if isinstance(ip, tuple):
         ip = peer(ip)
-    parts = [f"[{service}] [{action}] [{level}]"]
+    parts = [f"[{service}] [{action}] [{level}] {_conn_tag(conn)}"]
     if text:
         parts.append(text)
     who = " ".join(x for x in (f"user={user}" if user else "", f"ip={ip}" if ip else "") if x)
@@ -125,10 +140,11 @@ def redact(data: bytes) -> bytes:
     return _SECRET.sub(lambda m: m.group(1) + b"<redacted>", data)
 
 
-def packet(service: str, direction: str, data: bytes, user: str | None = None, ip=None, **targets) -> None:
+def packet(service: str, direction: str, data: bytes, user: str | None = None, ip=None, conn=None,
+           **targets) -> None:
     """direction: 'RECV' or 'SEND'. Logs a readable line plus (DEBUG) a hex dump."""
     if b"pass" in data.lower():
         data = redact(data)
-    event(service, direction, "INFO", f"{len(data)} bytes: {printable(data)}", user=user, ip=ip, **targets)
+    event(service, direction, "INFO", f"{len(data)} bytes: {printable(data)}", user=user, ip=ip, conn=conn, **targets)
     if Config.LOG_HEX and data and _log.isEnabledFor(logging.DEBUG):
-        _log.debug("[%s] [%s-HEX] [DEBUG]\n%s", service, direction, hexdump(data))
+        _log.debug("[%s] [%s-HEX] [DEBUG] %s\n%s", service, direction, _conn_tag(conn), hexdump(data))

@@ -41,7 +41,7 @@ def column_type(col: str, value) -> str:
 
 def default_row(profileid: int, nick: str) -> dict:
     row = {c: (0 if t == "intValue" else "") for c, t in PLAYERSTATS_COLUMNS.items()}
-    row.update(ownerid=profileid, recordid=profileid - PROFILE_ID_OFFSET, PlayerUnickName=nick, Rank=1)
+    row.update(ownerid=profileid, recordid=profileid - PROFILE_ID_OFFSET, PlayerUnickName=nick, Rank=0)  # 0 = Pvt
     return row
 
 

@@ -1,0 +1,134 @@
+"""Logging: every connection, packet and request goes through here.
+
+Line format (fields that are unknown are simply left out):
+
+  2026-11-11 21:03:44.120 [GPCM] [LOGIN] [INFO] login accepted | user=Bob ip=10.0.0.5:51234 | profileid=100000001 sesskey=4242
+
+  [Service] [Action] [LEVEL] context text | {user/server name} {source ip} | {other targets}
+
+Rule of thumb for this server: if something reached a socket, there is a log
+line for it. Raw bytes are logged *before* any parsing so a malformed packet
+still shows up.
+"""
+from __future__ import annotations
+
+import itertools
+import logging
+import logging.handlers
+import os
+import re
+import sys
+
+from .config import Config
+
+_conn_counter = itertools.count(1)
+_log = logging.getLogger("rising2")
+
+
+def next_conn_id() -> int:
+    return next(_conn_counter)
+
+
+def setup(console_level: str | None = None) -> None:
+    fmt = logging.Formatter("%(asctime)s.%(msecs)03d %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    root = logging.getLogger()
+    root.setLevel(getattr(logging, Config.LOG_LEVEL.upper(), logging.DEBUG))
+    for h in list(root.handlers):
+        root.removeHandler(h)
+
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setFormatter(fmt)
+    if console_level:
+        sh.setLevel(_LEVELS.get(console_level, logging.WARNING))
+    root.addHandler(sh)
+
+    try:
+        os.makedirs(Config.LOG_DIR, exist_ok=True)
+        fh = logging.handlers.RotatingFileHandler(
+            os.path.join(Config.LOG_DIR, "rising2.log"),
+            maxBytes=50 * 1024 * 1024, backupCount=10, encoding="utf-8",
+        )
+        fh.setFormatter(fmt)
+        root.addHandler(fh)
+    except OSError as e:  # read-only volume etc. - console logging still works
+        event("CORE", "LOGFILE", "WARN", f"file logging disabled: {e}")
+
+
+_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARN": logging.WARNING,
+    "ERROR": logging.ERROR,
+}
+
+
+def peer(addr) -> str:
+    if not addr:
+        return ""
+    return f"{addr[0]}:{addr[1]}"
+
+
+def event(service: str, action: str, level: str, text: str = "",
+          user: str | None = None, ip=None, **targets) -> None:
+    """Main logging call.
+
+    service : GPCM, GPSP, QR2, SB, CDKEY, NATNEG, HTTP, AUTH, SAKE, COMP, STATS, CORE
+    action  : short verb, e.g. CONNECT, RECV, SEND, LOGIN, HEARTBEAT, SUBMIT
+    level   : DEBUG / INFO / WARN / ERROR
+    user    : player nick or game-server name if known
+    ip      : "1.2.3.4:5678" or an (ip, port) tuple
+    targets : any other context (profileid=..., csid=..., table=...)
+    """
+    lvl = _LEVELS.get(level, logging.INFO)
+    if not _log.isEnabledFor(lvl):
+        return
+    if isinstance(ip, tuple):
+        ip = peer(ip)
+    parts = [f"[{service}] [{action}] [{level}]"]
+    if text:
+        parts.append(text)
+    who = " ".join(x for x in (f"user={user}" if user else "", f"ip={ip}" if ip else "") if x)
+    if who:
+        parts.append("| " + who)
+    tg = " ".join(f"{k}={v}" for k, v in targets.items() if v is not None and v != "")
+    if tg:
+        parts.append("| " + tg)
+    _log.log(lvl, " ".join(parts))
+
+
+def printable(data: bytes, limit: int = 600) -> str:
+    """GameSpy text protocols as a readable one-liner (non-printables as <xx>)."""
+    out = []
+    for o in data[:limit]:
+        out.append(chr(o) if 0x20 <= o < 0x7F else f"<{o:02x}>")
+    if len(data) > limit:
+        out.append(f"...(+{len(data) - limit} bytes)")
+    return "".join(out)
+
+
+def hexdump(data: bytes) -> str:
+    data = data[: Config.LOG_HEX_MAX]
+    lines = []
+    for off in range(0, len(data), 16):
+        chunk = data[off : off + 16]
+        hx = " ".join(f"{b:02x}" for b in chunk)
+        asc = "".join(chr(b) if 0x20 <= b < 0x7F else "." for b in chunk)
+        lines.append(f"    {off:04x}  {hx:<47}  {asc}")
+    return "\n".join(lines)
+
+
+_SECRET = re.compile(rb"(\\(?:passenc|pass|password|newpassword)\\)[^\\]*", re.IGNORECASE)
+
+
+def redact(data: bytes) -> bytes:
+    """Hide GP password fields (passenc is reversible, so it must not reach the logs)."""
+    return _SECRET.sub(lambda m: m.group(1) + b"<redacted>", data)
+
+
+def packet(service: str, direction: str, data: bytes, user: str | None = None, ip=None, **targets) -> None:
+    """direction: 'RECV' or 'SEND'. Logs a readable line plus (DEBUG) a hex dump."""
+    if b"pass" in data.lower():
+        data = redact(data)
+    event(service, direction, "INFO", f"{len(data)} bytes: {printable(data)}", user=user, ip=ip, **targets)
+    if Config.LOG_HEX and data and _log.isEnabledFor(logging.DEBUG):
+        _log.debug("[%s] [%s-HEX] [DEBUG]\n%s", service, direction, hexdump(data))

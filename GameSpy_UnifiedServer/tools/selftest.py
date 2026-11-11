@@ -8,7 +8,7 @@ game server via QR2, fetches + decrypts the server list, checks a CD key, runs
 a full Competition flow (CreateSession, SetReportIntention x3, SubmitReport
 with a DIME report) and verifies that PlayerStats_v1 changed.
 
-Run it against a server with R2_CERT_MODE=per_user and a THROW-AWAY data dir.
+Run it against a server with a THROW-AWAY data dir.
 """
 from __future__ import annotations
 
@@ -205,8 +205,7 @@ def main() -> int:
         m = re.search(r"<ns1:certificate>.*</ns1:certificate>", x, re.S)
         check(f"Auth LoginUniqueNick {nick}", bool(m) and "<ns1:responseCode>0<" in x)
         certs[nick] = cert_xml(m.group(0)) if m else ""
-        if m and f"<ns1:profileid>{profiles.get(nick)}<" not in x:
-            print("   note: certificate carries the canned profileid (R2_CERT_MODE=canned)")
+        check(f"Auth certificate carries {nick}'s profileid", f"<ns1:profileid>{profiles.get(nick)}<" in x)
 
     def sake_stats(nick):
         x = soap(H, a.http_port, "/SakeStorageServer/StorageServer.asmx", "http://gamespy.net/sake/SearchForRecords",
@@ -257,8 +256,11 @@ def main() -> int:
     check("Competition SetReportIntention (server + 2 clients)", all(ccids.values()))
 
     players = [
-        {"ccid": ccids[users[0][0]], "team": 1, "result": 0, "keys": {5: (0, 7), 6: (0, 3), 7: (3, "sniper"), 8: (4, 1.5)}},
-        {"ccid": ccids[users[1][0]], "team": 2, "result": 1, "keys": {5: (0, 2), 6: (0, 9), 9: (2, 4), 999: (0, 1)}},
+        # key 18 = Squad Leader skill, key 14 = Trooper skill this match (the default TotalSkill is their sum)
+        {"ccid": ccids[users[0][0]], "team": 1, "result": 0,
+         "keys": {5: (0, 7), 6: (0, 3), 7: (3, "sniper"), 8: (4, 1.5), 18: (0, 4)}},
+        {"ccid": ccids[users[1][0]], "team": 2, "result": 1,
+         "keys": {5: (0, 2), 6: (0, 9), 9: (2, 4), 14: (0, -1), 999: (0, 1)}},
     ]
     report = build_report(players, [{"result": 0, "keys": {1: (0, 100)}}, {"result": 1, "keys": {1: (0, 50)}}],
                           {1: (3, "x_range"), 2: (0, 600)})
@@ -271,10 +273,11 @@ def main() -> int:
 
     after = {n: sake_stats(n)[0] for n, _, _ in users}
     a0, b0 = before[users[0][0]], after[users[0][0]]
-    check("Winner gained XP (TotalSkill) and a session",
-          len(b0) >= 4 and int(b0[1]) == int(a0[1]) + 30 and int(b0[3]) == int(a0[3]) + 1, f"{a0} -> {b0}")
+    check("Winner gained class skill (TotalSkill +4) and a session",
+          len(b0) >= 4 and int(b0[1]) == int(a0[1]) + 4 and int(b0[3]) == int(a0[3]) + 1, f"{a0} -> {b0}")
     a1, b1 = before[users[1][0]], after[users[1][0]]
-    check("Loser gained participation XP", len(b1) >= 4 and int(b1[1]) == int(a1[1]) + 10, f"{a1} -> {b1}")
+    check("Loser's TotalSkill floored at 0 (skill -1) and a session",
+          len(b1) >= 4 and int(b1[1]) == max(0, int(a1[1]) - 1) and int(b1[3]) == int(a1[3]) + 1, f"{a1} -> {b1}")
 
     c = http.client.HTTPConnection(H, a.http_port, timeout=5)
     c.request("GET", "/rising2/status")

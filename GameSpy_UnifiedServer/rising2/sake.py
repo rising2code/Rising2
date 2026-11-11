@@ -69,7 +69,7 @@ def rows_for_table(ctx, table: str) -> list[dict]:
         for u in ctx.db.login.all_users():
             base = {
                 "ownerid": u["profileid"], "recordid": u["id"], "NickName": u["name"], "EmailAddress": u["email"],
-                "AccountCreationDate": _iso(None), "LastGameDate": _iso(u.get("lasttime")),
+                "AccountCreationDate": _iso(u.get("created") or u.get("lasttime")), "LastGameDate": _iso(u.get("lasttime")),
                 "ViewMyProfile": 1, "ViewMyEmail": 1, "CampaignsCompleted": 0,
             }
             row = _typed(base, PERSONALINFO_TYPES)

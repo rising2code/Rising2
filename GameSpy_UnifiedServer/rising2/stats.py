@@ -23,7 +23,36 @@ PLAYERSTATS_COLUMNS: dict[str, str] = {
     "SpiderChargeMaster": "intValue", "HandGrenadeMaster": "intValue", "SledgeHammerMaster": "intValue",
     "Hand2HandMaster": "intValue", "AbePlatformMaster": "intValue", "MasterHackerAward": "intValue",
     "MasterSniperAward": "intValue", "Qualifications": "asciiStringValue",
+    "ViewMyProfile": "intValue",
 }
+
+# Profile settings, not stats: the same in every season. They live in the player's PersonalInfo
+# Sake record and are copied into every PlayerStats_v1 row. The leaderboard reads both.
+PROFILE_COLUMNS: dict[str, tuple[str, object]] = {   # column -> (Sake type, default)
+    "PlayerClanNameTag": ("asciiStringValue", ""),
+    "ViewMyProfile": ("intValue", 1),
+}
+CLAN_TAG_MAX = 32
+
+
+def profile_fields(ctx, profileid: int) -> dict:
+    rec = ctx.db.stats.sake_get_by_owner("PersonalInfo", profileid)
+    data = rec["data"] if rec else {}
+    out = {}
+    for col, (_t, default) in PROFILE_COLUMNS.items():
+        v = data.get(col)
+        out[col] = v[1] if isinstance(v, (list, tuple)) and len(v) == 2 else default
+    return out
+
+
+def save_profile_fields(ctx, profileid: int, **values) -> None:
+    """Store profile settings (e.g. PlayerClanNameTag="ABC") in the player's PersonalInfo record."""
+    st = ctx.db.stats
+    rec = st.sake_get_by_owner("PersonalInfo", profileid)
+    data = rec["data"] if rec else {}
+    for col, v in values.items():
+        data[col] = [PROFILE_COLUMNS[col][0], v]
+    st.sake_put("PersonalInfo", profileid - PROFILE_ID_OFFSET, profileid, data)
 
 
 def column_type(col: str, value) -> str:
@@ -55,6 +84,7 @@ def player_row(ctx, profileid: int, nick: str | None = None, season: str | None 
     row = default_row(profileid, nick)
     if stored:
         row.update(stored["data"])
+    row.update(profile_fields(ctx, profileid))  # clan tag etc. are per profile, not per season
     row["ownerid"] = profileid
     row["recordid"] = profileid - PROFILE_ID_OFFSET
     return row

@@ -185,9 +185,45 @@ def submit_report(op: Node, ctx, ip: str, raw_body: bytes, content_type: str, ce
     st.x("UPDATE comp_reports SET parse_ok=1, game_status=?, flags=?, player_count=?, team_count=?, parsed_json=? WHERE id=?",
          (h["game_status"], h["flags"], h["players"], h["teams"], json.dumps(_json_safe(parsed)), rid))
 
-    apply_report(ctx, rid, parsed, players, season)
+    if is_profile_report(players):
+        apply_profile_report(ctx, rid, players, cert_pid, ip)
+    else:
+        apply_report(ctx, rid, parsed, players, season)
     st.x("UPDATE comp_reports SET applied=1 WHERE id=?", (rid,))
     return _resp("SubmitReport", 0)
+
+
+# The profile page's "Update" button: the CLIENT opens its own session and reports itself with
+# key 44 = ViewMyProfile, 43 = its nick, 46 = clan tag. Match reports from the game server always
+# carry key 8 (constant 1) and never 43/46. A profile report is not a played session.
+PROFILE_NICK_KEY, PROFILE_CLAN_KEY, PROFILE_VIEW_KEY, MATCH_MARKER_KEY = 43, 46, 44, 8
+
+
+def is_profile_report(players: list[dict]) -> bool:
+    return bool(players) and all(MATCH_MARKER_KEY not in p["keys"] and
+                                 (PROFILE_CLAN_KEY in p["keys"] or PROFILE_NICK_KEY in p["keys"]) for p in players)
+
+
+def apply_profile_report(ctx, rid: int, players: list[dict], cert_pid: int | None, ip: str) -> None:
+    from .stats import CLAN_TAG_MAX, save_profile_fields
+    for p in players:
+        pid = p["profileid"]
+        if not pid or pid != cert_pid:  # a player may only change their own profile
+            log.event("COMP", "PROFILE", "WARN", "profile update ignored: not the submitter's own profile",
+                      user=p["nick"], ip=ip, report=rid, profileid=pid, cert_profileid=cert_pid)
+            continue
+        values = {}
+        clan = p["keys"].get(PROFILE_CLAN_KEY)
+        if isinstance(clan, str):
+            values["PlayerClanNameTag"] = clan.strip()[:CLAN_TAG_MAX]
+        view = p["keys"].get(PROFILE_VIEW_KEY)
+        if isinstance(view, int):
+            values["ViewMyProfile"] = 1 if view else 0
+        if values:
+            save_profile_fields(ctx, pid, **values)
+        log.event("COMP", "PROFILE", "INFO", "profile settings saved (not counted as a session)",
+                  user=p["nick"], ip=ip, report=rid, profileid=pid,
+                  **{k: repr(v) for k, v in values.items()})
 
 
 def parse_request(body: bytes, content_type: str) -> tuple[Node, bytes | None]:

@@ -101,8 +101,26 @@ Sniper->3, Hacker->4, ABE->5, everything else (troopers, drone)->2.
 | 44 | BYTE | always | The player's **ViewMyProfile** flag (record +0x164 <- profile +0x6C <- player info +0x100, set by `SetPlayerProfileView` `0x821632`, copied in `SetPlayerData` `0x83338D`). Not a stat. | none (ignore) | high |
 | 45 | INT32 | non-zero | Squad Leader on the winning team, still connected at the end (slot 23, `0x82A12A`..`0x82A33B`). | GiftedSquadLeaderAward | medium |
 
-Keys 22 and 43 are never written. Slot 8 (deaths, `0x8321DB` / `0x831791`) and slots 9, 10
+Keys 22 and 43 are never written by the dedicated server. Slot 8 (deaths, `0x8321DB` / `0x831791`) and slots 9, 10
 exist but are **not reported**, so deaths cannot be tracked from the report.
+
+### Profile-update report (sent by the client, not the server)
+
+The profile page's **Update** button (client `RisingEagle.exe`, handler around `0x6E97C8`) does not
+write the clan tag through Sake. The client opens its **own** Competition session and submits a
+one-player report (team result DRAW) with only these keys:
+
+| Key | Type | Meaning |
+|---|---|---|
+| 43 | STRING | the player's nick |
+| 44 | BYTE | "Allow others to view my profile" checkbox |
+| 46 | STRING | **clan tag** (`PlayerClanNameTag`) |
+
+Match reports always carry key 8 (constant 1) and never 43/46, so `rising2/comp.py`
+(`is_profile_report`) tells them apart. A profile report is not a played session and does not go
+through `rules.py`: the clan tag and ViewMyProfile are stored in the player's PersonalInfo record
+(only for the certificate's own profile), are the same in every season, and are copied into every
+`PlayerStats_v1` row. The leaderboard asks for both columns (ViewMyProfile as an int).
 
 ### Weapon kill details (`0x824FC0`)
 

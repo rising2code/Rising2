@@ -291,6 +291,42 @@ def main() -> int:
     check("Loser's TotalSkill floored at 0 (skill -1) and a session",
           len(b1) >= 4 and int(b1[1]) == max(0, int(a1[1]) - 1) and int(b1[3]) == int(a1[3]) + 1, f"{a1} -> {b1}")
 
+    # ------------------------------------------------ profile "Update" button (clan tag)
+    # The client opens its OWN session and reports itself: 44 = ViewMyProfile, 43 = nick, 46 = clan tag.
+    me = users[0][0]
+    x = soap(H, a.http_port, "/CompetitionService/CompetitionService.asmx", NS + "CreateSession",
+             env("gsc", NS, f"<gsc:CreateSession>{certs[me]}<gsc:proof>0</gsc:proof><gsc:gameid>1693</gsc:gameid></gsc:CreateSession>"))
+    pcsid, pccid = re.search(r"<ns1:csid>([^<]+)", x).group(1), re.search(r"<ns1:ccid>([^<]+)", x).group(1)
+    soap(H, a.http_port, "/CompetitionService/CompetitionService.asmx", NS + "SetReportIntention",
+         env("gsc", NS, f"<gsc:SetReportIntention>{certs[me]}<gsc:proof>0</gsc:proof><gsc:csid>{pcsid}</gsc:csid>"
+                        f"<gsc:ccid>{pccid}</gsc:ccid><gsc:gameid>1693</gsc:gameid><gsc:authoritative>1</gsc:authoritative>"
+                        f"</gsc:SetReportIntention>"))
+    clan = f"R2{tag[:3]}"
+    report = build_report([{"ccid": pccid, "team": 1, "result": 2, "keys": {44: (2, 1), 43: (3, me), 46: (3, clan)}}],
+                          [{"result": 2, "keys": {}}], {})
+    xml = env("gsc", NS, f"<gsc:SubmitReport>{certs[me]}<gsc:proof>0</gsc:proof><gsc:csid>{pcsid}</gsc:csid>"
+                         f"<gsc:ccid>{pccid}</gsc:ccid><gsc:gameid>1693</gsc:gameid><gsc:authoritative>1</gsc:authoritative>"
+                         f"</gsc:SubmitReport>").encode()
+    x = soap(H, a.http_port, "/CompetitionService/CompetitionService.asmx", NS + "SubmitReport",
+             build_dime(xml, report), ctype="application/dime")
+    check("Profile update report (clan tag) accepted", "<ns1:result>0<" in x)
+    p_after = sake_stats(me)[0]
+    check("Profile update is not counted as a session", p_after[3] == after[me][3], f"{after[me]} -> {p_after}")
+    x = soap(H, a.http_port, "/SakeStorageServer/StorageServer.asmx", "http://gamespy.net/sake/SearchForRecords",
+             env("ns1", "http://gamespy.net/sake",
+                 f"<ns1:SearchForRecords><ns1:gameid>1693</ns1:gameid><ns1:secretKey>9cy8vc</ns1:secretKey>"
+                 f"<ns1:loginTicket>{tickets.get(me, '')}</ns1:loginTicket><ns1:tableid>PlayerStats_v1</ns1:tableid>"
+                 f"<ns1:filter>PlayerUnickName != ''</ns1:filter><ns1:sort>TotalSkill desc</ns1:sort>"
+                 f"<ns1:offset>0</ns1:offset><ns1:max>50</ns1:max><ns1:targetfilter/><ns1:surrounding>0</ns1:surrounding>"
+                 f"<ns1:ownerids/><ns1:cacheFlag>0</ns1:cacheFlag><ns1:fields><ns1:string>PlayerUnickName</ns1:string>"
+                 f"<ns1:string>ViewMyProfile</ns1:string><ns1:string>PlayerClanNameTag</ns1:string>"
+                 f"<ns1:string>ownerid</ns1:string></ns1:fields></ns1:SearchForRecords>"))
+    rows = re.findall(r"<ns1:ArrayOfRecordValue>(.*?)</ns1:ArrayOfRecordValue>", x, re.S)
+    mine = [re.findall(r"<ns1:value>([^<]*)</ns1:value>", r) for r in rows]
+    mine = [r for r in mine if r and r[0] == me]
+    check("Leaderboard row has the clan tag and ViewMyProfile=1",
+          bool(mine) and mine[0][1:3] == ["1", clan] and "<ns1:RecordValue/>" not in x, str(mine))
+
     import json
 
     def status() -> dict:

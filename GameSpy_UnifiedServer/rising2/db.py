@@ -73,6 +73,16 @@ def _migrate_seasons(con: sqlite3.Connection):
     return copy_rows
 
 
+def _migrate_login(con: sqlite3.Connection):
+    """Older login databases have no `created` column: add it, best guess = last login time."""
+    cols = _columns(con, "users")
+    if cols and "created" not in cols:
+        con.execute("ALTER TABLE users ADD COLUMN created INTEGER NULL DEFAULT '0'")
+        con.execute("UPDATE users SET created=lasttime")
+        log.event("CORE", "DB", "WARN", "migrated users: added created column (old accounts -> their last login time)")
+    return None
+
+
 def copy_templates() -> None:
     """Keep create_empty_db.py + schema files next to the live databases."""
     for target_dir in {os.path.dirname(os.path.abspath(Config.LOGIN_DB)),
@@ -98,7 +108,7 @@ def _user(row: sqlite3.Row | None) -> dict | None:
 
 class LoginDB:
     def __init__(self, path: str) -> None:
-        self.con = _open(path, "schema_login.sql")
+        self.con = _open(path, "schema_login.sql", _migrate_login)
 
     def get_user(self, name: str) -> dict | None:
         return _user(self.con.execute("SELECT * FROM users WHERE name=? COLLATE NOCASE", (name,)).fetchone())
@@ -121,8 +131,8 @@ class LoginDB:
 
     def create_user(self, name: str, md5pass: str, email: str, country: str, ip: str) -> dict | None:
         self.con.execute(
-            "INSERT INTO users (name, password, email, country, lastip, lasttime) VALUES (?,?,?,?,?,?)",
-            (name, md5pass, email.lower(), country, ip, now()),
+            "INSERT INTO users (name, password, email, country, lastip, lasttime, created) VALUES (?,?,?,?,?,?,?)",
+            (name, md5pass, email.lower(), country, ip, now(), now()),
         )
         return self.get_user(name)
 

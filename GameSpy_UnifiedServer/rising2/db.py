@@ -74,12 +74,15 @@ def _migrate_seasons(con: sqlite3.Connection):
 
 
 def _migrate_login(con: sqlite3.Connection):
-    """Older login databases have no `created` column: add it, best guess = last login time."""
+    """Older login databases lack `created` (best guess = last login time) and `expires` (NULL = never)."""
     cols = _columns(con, "users")
     if cols and "created" not in cols:
         con.execute("ALTER TABLE users ADD COLUMN created INTEGER NULL DEFAULT '0'")
         con.execute("UPDATE users SET created=lasttime")
         log.event("CORE", "DB", "WARN", "migrated users: added created column (old accounts -> their last login time)")
+    if cols and "expires" not in cols:
+        con.execute("ALTER TABLE users ADD COLUMN expires INTEGER NULL DEFAULT NULL")
+        log.event("CORE", "DB", "WARN", "migrated users: added expires column (existing accounts never expire)")
     return None
 
 
@@ -94,6 +97,11 @@ def copy_templates() -> None:
             log.event("CORE", "DB", "INFO", f"db template script + schemas copied to {target_dir}")
         except OSError as e:
             log.event("CORE", "DB", "WARN", f"could not copy db templates to {target_dir}: {e}")
+
+
+def password_valid(acct: dict) -> bool:
+    """A password may be used: classic account (no expiry) or managed account not expired yet."""
+    return acct.get("expires") is None or acct["expires"] > now()
 
 
 def _user(row: sqlite3.Row | None) -> dict | None:
@@ -117,7 +125,9 @@ class LoginDB:
         return _user(self.con.execute("SELECT * FROM users WHERE id=?", (int(profileid) - PROFILE_ID_OFFSET,)).fetchone())
 
     def users_by_email_and_password(self, email: str, md5pass: str) -> list[dict]:
-        rows = self.con.execute("SELECT * FROM users WHERE email=? COLLATE NOCASE AND password=?", (email, md5pass))
+        """Only accounts whose password is still valid (see password_valid)."""
+        rows = self.con.execute("SELECT * FROM users WHERE email=? COLLATE NOCASE AND password=? "
+                                "AND (expires IS NULL OR expires > ?)", (email, md5pass, now()))
         return [_user(r) for r in rows]
 
     def users_by_email(self, email: str) -> list[dict]:
@@ -129,12 +139,26 @@ class LoginDB:
     def exists(self, name: str) -> bool:
         return self.get_user(name) is not None
 
-    def create_user(self, name: str, md5pass: str, email: str, country: str, ip: str) -> dict | None:
+    def create_user(self, name: str, md5pass: str, email: str, country: str, ip: str,
+                    expires: int | None = None) -> dict | None:
+        """expires=None: classic account (the game's newuser), the password never expires."""
         self.con.execute(
-            "INSERT INTO users (name, password, email, country, lastip, lasttime, created) VALUES (?,?,?,?,?,?,?)",
-            (name, md5pass, email.lower(), country, ip, now(), now()),
+            "INSERT INTO users (name, password, email, country, lastip, lasttime, created, expires) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (name, md5pass, email.lower(), country, ip, now(), now(), expires),
         )
         return self.get_user(name)
+
+    def set_password(self, name: str, md5pass: str, expires: int) -> bool:
+        """Managed reset: new password + expiry (turns a classic account into a managed one)."""
+        cur = self.con.execute("UPDATE users SET password=?, expires=? WHERE name=? COLLATE NOCASE",
+                               (md5pass, expires, name))
+        return cur.rowcount > 0
+
+    def roll_expiry(self, name: str, expires: int) -> None:
+        """Move a managed account's expiry; classic accounts (NULL) stay classic."""
+        self.con.execute("UPDATE users SET expires=? WHERE name=? COLLATE NOCASE AND expires IS NOT NULL",
+                         (expires, name))
 
     def set_country(self, name: str, country: str) -> None:
         self.con.execute("UPDATE users SET country=? WHERE name=? COLLATE NOCASE", (country.upper(), name))

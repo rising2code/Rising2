@@ -81,7 +81,7 @@ def main(argv: list[str]) -> int:
         print(f"season '{season}'")
         for u in ctx.db.login.all_users():
             r = player_row(ctx, u["profileid"], u["name"], season)
-            print(f"{u['name']:<20} profileid={u['profileid']} email={u['email']} lastip={u['lastip']} "
+            print(f"{u['name']:<20} profileid={u['profileid']} email={u['email']} expires={u.get('expires') or 'never'} lastip={u['lastip']} "
                   f"TotalSkill={r.get('TotalSkill')} Rank={r.get('Rank')} sessions={r.get('TotalSessions')}")
     elif cmd == "stats":
         u = _user(ctx, args[0])

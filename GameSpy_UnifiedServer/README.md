@@ -210,6 +210,42 @@ python tools/patch_dedicated_server.py "path/to/Official_DedicatedServer_131.exe
 
 Only the official server sends reports; the unofficial `DedicatedServer.exe` has that code stubbed out.
 
+## Managed accounts
+
+Another system (your account website) can own the accounts. It creates them and hands out short-lived game passwords,
+so a leaked password or a leaked `LoginDatabase.db3` is only useful for a little while.
+
+Turn it on by setting `R2_ADMIN_TOKEN`. Without it the endpoints answer 404. Both calls need
+`Authorization: Bearer <R2_ADMIN_TOKEN>` and a JSON body:
+
+| Call | Body | Answer |
+|---|---|---|
+| `POST /rising2/admin/create` | `{"nick", "email", "password"}` | `200 {"nick", "profileid", "userid", "expires"}`, `409` if the nick is taken |
+| `POST /rising2/admin/reset` | `{"nick", "password"}` | `200` as above, `404` for an unknown nick |
+
+Other answers: `400` for bad input (each field is 1-64 printable ASCII characters with no `\`; nick and email have no spaces),
+and `401` for a missing or wrong token. These request bodies are never logged.
+
+The password is stored as `md5(password)`, the same as every other account, and `users.expires` gets set:
+
+* create / reset: `expires = now + R2_PASS_TTL_IDLE` (1h). A password nobody uses dies after that.
+* every successful login: `expires = now + R2_PASS_TTL_LOGIN` (6h).
+* every logout, crash or dropped connection: `expires = now + R2_PASS_TTL_IDLE`.
+
+So while a player keeps playing (the game logs out and back in after every match), the password keeps rolling.
+After they leave the game they have 1h to come back. After that, they need a new password from your system (reset).
+The expiry is only checked at login: a live session is never cut off.
+
+When the password has expired, GPCM `login` and GPSP `check` fail with "password incorrect", GPSP `nicks` returns no
+profiles, and AuthService gives a certificate with profileid 0, so no stats are credited. The account itself stays
+visible everywhere else (leaderboards, profiles, search).
+
+Accounts with an empty `expires` never expire. These are accounts from before this feature and accounts from the game's
+own "create account". Resetting one turns it into a managed account. Set `R2_DISABLE_NEWUSER=1` to refuse in-game
+account creation, so accounts only come from your system.
+
+The admin endpoints share the public HTTP port with the game services, so the token is their only protection: use a long random one.
+
 ## Admin and debugging
 
 ```bash
@@ -244,6 +280,10 @@ JSON pages: `http://<server>/rising2/status` (includes the current `season` and 
 | `R2_QR_SERVER_TIMEOUT` | `30` | seconds before a silent game server is dropped |
 | `R2_ENABLE_NATNEG_LOGGER` | `1` | listen on 27901 just to log |
 | `R2_MOTD` | `Welcome to Rising2` | message of the day |
+| `R2_ADMIN_TOKEN` | empty | bearer token for `/rising2/admin/*`; empty = endpoints off ([Managed accounts](#managed-accounts)) |
+| `R2_DISABLE_NEWUSER` | `0` | `1` = refuse the game's own account creation |
+| `R2_PASS_TTL_IDLE` | `1h` | managed password: life after create/reset and after each logout |
+| `R2_PASS_TTL_LOGIN` | `6h` | managed password: life after each login |
 | `R2_PORT_*` | standard | `GPCM GPSP SB QR NATNEG CDKEY HTTP` |
 | `R2_LOG_HEX_MAX` | `4096` | bytes per hex dump (console and file) |
 | `R2_JOB_<NAME>_EVERY`, `R2_JOB_<NAME>_KEEP`, ... | see [Cleanup](#cleanup) | cleanup jobs |
@@ -292,6 +332,8 @@ user, login, QR2 register, server list decrypt, CD key, Auth, Sake, and a full
 Competition flow with a DIME report, then checks that `TotalSkill` and sessions changed.
 Run inside the container it also switches to a temporary season (and back) to check that
 players start from zero and a match keeps the season it started in.
+`tools/selftest_accounts.py` tests [Managed accounts](#managed-accounts) (about 40 seconds; the
+instance needs short expiry times; see the commands in the script's header).
 **Point it at a throw-away instance**, because it creates accounts:
 
 ```bash

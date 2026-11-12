@@ -10,6 +10,7 @@ import asyncio
 
 from . import gs_crypto as gc
 from .config import Config
+from .db import now, password_valid
 
 LT_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]["
 
@@ -84,6 +85,8 @@ class GpcmSession(TcpSession, _GpBase):
             self.ka_task.cancel()
         if self.account:
             self.ev("LOGOUT", "INFO", "player session ended", profileid=self.account["profileid"])
+            # logout, crash or dropped connection: a managed password stays valid for PASS_TTL_IDLE more
+            self.ctx.db.login.roll_expiry(self.account["name"], now() + Config.PASS_TTL_IDLE)
 
     async def handle(self, query: str, kv: dict[str, str]) -> None:
         db = self.ctx.db
@@ -124,6 +127,11 @@ class GpcmSession(TcpSession, _GpBase):
             self.ev("LOGIN", "WARN", "login rejected: unknown user")
             await self.send_text(err(265, f"Username [{name}] doesn't exist!"))
             return
+        if not password_valid(acct):
+            self.ev("LOGIN", "WARN", "login rejected: password expired (get a new one from the account system)",
+                    profileid=acct["profileid"], expired=acct["expires"])
+            await self.send_text(err(260, "The password provided is incorrect."))
+            return
         md5pass = acct["passwordenc"]
         expected = gc.gp_response(md5pass, name, self.client_challenge, self.server_challenge)
         if kv["response"] != expected:
@@ -136,6 +144,7 @@ class GpcmSession(TcpSession, _GpBase):
         proof = gc.gp_response(md5pass, name, self.server_challenge, self.client_challenge)
         lt = gc.random_string(22, LT_ALPHABET) + "__"
         self.ctx.db.login.log_login(name, self.ip)
+        self.ctx.db.login.roll_expiry(name, now() + Config.PASS_TTL_LOGIN)  # managed accounts only
         self.ctx.db.stats.add_login("gp", lt, acct["profileid"], acct["name"], self.ip)
         self.ev("LOGIN", "INFO", "login accepted", profileid=acct["profileid"], userid=acct["userid"],
                 sesskey=sesskey, ticket=lt)
@@ -180,6 +189,11 @@ class GpcmSession(TcpSession, _GpBase):
 
 async def _newuser(sess, kv: dict[str, str], gpcm: bool) -> None:
     nick, email = kv.get("nick"), kv.get("email")
+    if Config.DISABLE_NEWUSER:
+        sess.ev("NEWUSER", "WARN", "rejected: in-game account creation is disabled (R2_DISABLE_NEWUSER)",
+                nick=nick, email=email)
+        await sess.send_text(err(0, "Account creation is disabled on this server."))
+        return
     if not nick or not email or ("passenc" not in kv and "pass" not in kv):
         sess.ev("NEWUSER", "ERROR", "rejected: missing nick/email/password", keys=",".join(kv))
         await sess.send_text(err(0, "Invalid Query!"))
@@ -236,8 +250,10 @@ class GpspSession(TcpSession, _GpBase):
                 self.ev("CHECK", "WARN", "unknown user")
                 await self.send_text(err(265, f"Username [{name}] doesn't exist!"))
                 return
-            ok = gc.md5_hex(password_from_kv(kv)) == acct["passwordenc"]
-            self.ev("CHECK", "INFO", "password " + ("correct" if ok else "WRONG"), profileid=acct["profileid"])
+            expired = not password_valid(acct)
+            ok = not expired and gc.md5_hex(password_from_kv(kv)) == acct["passwordenc"]
+            self.ev("CHECK", "INFO" if ok else "WARN",
+                    "password " + ("correct" if ok else "EXPIRED" if expired else "WRONG"), profileid=acct["profileid"])
             await self.send_text(f"\\cur\\{0 if ok else 3587}\\pid\\{acct['profileid']}\\final\\")
         elif query == "search":
             if "uniquenick" in kv:

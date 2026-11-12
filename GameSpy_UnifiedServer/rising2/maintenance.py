@@ -30,20 +30,10 @@ import time
 import traceback
 
 from . import log
-from .config import Config
-
-_DUR = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd]?)\s*$", re.IGNORECASE)
-_UNIT = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
+from .config import Config, parse_duration
 
 TICK = 60          # seconds between "is a job due?" checks
 STARTUP_DELAY = 5  # seconds after the services are up, so the request that woke the server goes first
-
-
-def parse_duration(text: str, default: float) -> float:
-    m = _DUR.match(text or "")
-    if not m:
-        return default
-    return float(m.group(1)) * _UNIT[m.group(2).lower()]
 
 
 def fmt_duration(sec: float) -> str:

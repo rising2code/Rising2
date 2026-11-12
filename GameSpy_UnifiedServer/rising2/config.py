@@ -2,6 +2,18 @@
 from __future__ import annotations
 
 import os
+import re
+
+_DUR = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd]?)\s*$", re.IGNORECASE)
+_UNIT = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+def parse_duration(text: str, default: float) -> float:
+    """'30s', '10m', '2h', '7d' or plain seconds -> seconds."""
+    m = _DUR.match(text or "")
+    if not m:
+        return default
+    return float(m.group(1)) * _UNIT[m.group(2).lower()]
 
 
 def _env(name: str, default: str) -> str:
@@ -71,3 +83,14 @@ class Config:
     SB_OVERRIDE_SERVER_IP = _env("R2_SB_OVERRIDE_SERVER_IP", "")
 
     MOTD = _env("R2_MOTD", "Welcome to Rising2")
+
+    # Accounts managed by another system (README "Managed accounts").
+    # Bearer token for /rising2/admin/*; empty = those endpoints are off (404).
+    ADMIN_TOKEN = _env("R2_ADMIN_TOKEN", "")
+    # 1 = the game's own "create account" (newuser) is refused.
+    DISABLE_NEWUSER = _env_bool("R2_DISABLE_NEWUSER", False)
+    # Rolling password expiry for managed accounts (accounts with an expiry; classic ones never expire):
+    # set/reset and every logout or dropped connection -> now + PASS_TTL_IDLE,
+    # every successful login -> now + PASS_TTL_LOGIN.
+    PASS_TTL_IDLE = int(parse_duration(_env("R2_PASS_TTL_IDLE", "1h"), 3600))
+    PASS_TTL_LOGIN = int(parse_duration(_env("R2_PASS_TTL_LOGIN", "6h"), 6 * 3600))

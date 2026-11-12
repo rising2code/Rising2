@@ -10,7 +10,7 @@ import os
 import traceback
 import urllib.parse
 
-from . import auth, comp, log, sake
+from . import admin_api, auth, comp, log, sake
 from .config import Config
 from .net import TcpSession
 from .soap import fault, parse_envelope
@@ -72,7 +72,8 @@ class HttpSession(TcpSession):
             self._finished()
 
     async def reply(self, status: int, body: bytes, ctype: str = "text/xml; charset=utf-8", note: str = "") -> None:
-        reason = {200: "OK", 404: "Not Found", 500: "Internal Server Error", 400: "Bad Request"}.get(status, "OK")
+        reason = {200: "OK", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found", 405: "Method Not Allowed",
+                  409: "Conflict", 500: "Internal Server Error"}.get(status, "OK")
         head = (f"HTTP/1.1 {status} {reason}\r\nContent-Type: {ctype}\r\nContent-Length: {len(body)}\r\n"
                 f"Server: Rising2-GameSpy\r\nConnection: keep-alive\r\n\r\n").encode("latin-1")
         self.ev("RESPONSE", "INFO" if status == 200 else "WARN", f"{status} {reason}, {len(body)} bytes {note}".strip())
@@ -95,7 +96,8 @@ class HttpSession(TcpSession):
         ctype = headers.get("content-type", "")
         self.ev("REQUEST", "INFO", f"{method} {target}", host=headers.get("host"), soapaction=action or None,
                 content_type=ctype or None, length=len(body), agent=headers.get("user-agent"))
-        if Config.LOG_HTTP_BODY and body:
+        secret = lpath in admin_api.PATHS  # body holds a plain password: never logged
+        if Config.LOG_HTTP_BODY and body and not secret:
             if body.lstrip()[:1] == b"<":
                 self.ev("REQUEST-BODY", "DEBUG", body[:20000].decode("utf-8", "replace"))
             else:
@@ -116,6 +118,9 @@ class HttpSession(TcpSession):
                 op, attachment = comp.parse_request(body, ctype)
                 op.attachment = attachment
                 await self.reply(200, comp.handle(op, self.ctx, self.ip, body, ctype), note=f"Competition.{op.name}")
+            elif secret:
+                status, answer = admin_api.handle(lpath, method, headers, body, self.ctx, self.ip)
+                await self.reply(status, json.dumps(answer).encode("utf-8"), "application/json", note="admin")
             elif lpath.startswith("/rising2"):
                 await self.debug_page(lpath, url.query)
             else:

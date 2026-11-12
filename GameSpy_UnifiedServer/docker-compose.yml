@@ -41,6 +41,11 @@ services:
       R2_LOG_LEVEL: DEBUG          # DEBUG = hex dumps + full SOAP bodies, INFO = one line per event
       # R2_SB_OVERRIDE_SERVER_IP: 203.0.113.10
       # R2_MOTD: "Welcome to Rising2"
+      # Managed accounts (README "Managed accounts"):
+      # R2_ADMIN_TOKEN: <long random string>   # turns on /rising2/admin/create and /reset
+      # R2_DISABLE_NEWUSER: 1                  # refuse the game's own "create account"
+      # R2_PASS_TTL_IDLE: 1h
+      # R2_PASS_TTL_LOGIN: 6h
       # Cleanup jobs (README "Cleanup"): R2_JOB_<NAME>_EVERY / _KEEP, e.g.
       # R2_JOB_REPORTS_KEEP: 7d
       # R2_JOB_LOGINS_KEEP: 30d

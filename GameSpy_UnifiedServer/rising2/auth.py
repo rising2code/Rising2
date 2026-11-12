@@ -12,6 +12,7 @@ import binascii
 
 from . import log
 from .config import Config
+from .db import password_valid
 from .soap import E, Node, envelope
 
 NS = "http://gamespy.net/AuthService/"
@@ -52,6 +53,10 @@ def handle(op: Node, ctx, ip: str) -> bytes | None:
     nick = op.get("uniquenick") or op.get("profilenick") or op.get("nick") or op.get("email")
     if name in LOGIN_OPS:
         acct = ctx.db.login.get_user(nick) if nick else None
+        why = "nick not in login DB"
+        if acct and not password_valid(acct):
+            # managed account whose password expired: no real certificate (classic accounts never expire)
+            why, acct = f"password expired at {acct['expires']}", None
         if acct:
             uid, pid, cnick = acct["userid"], acct["profileid"], acct["name"]
             ctx.db.stats.add_login("auth", None, acct["profileid"], acct["name"], ip)
@@ -60,7 +65,7 @@ def handle(op: Node, ctx, ip: str) -> bytes | None:
             # so nothing this client reports can be credited to anybody.
             uid, pid, cnick = 0, 0, nick or ""
         log.event("AUTH", name.upper(), "INFO" if acct else "WARN",
-                  "certificate issued" + ("" if acct else " with profileid 0 - nick not in login DB, "
+                  "certificate issued" + ("" if acct else f" with profileid 0 - {why}, "
                                           "this player's stats will NOT be saved"),
                   user=nick, ip=ip, cert_profileid=pid, cert_nick=cnick,
                   partnercode=op.get("partnercode"), namespaceid=op.get("namespaceid"))

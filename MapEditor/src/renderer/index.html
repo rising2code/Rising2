@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: file:; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-NsYD1adzQgbN9IclgJMFViQYpCcHPBk1y2fEtrpw6t8='">
+  <!-- the sha256 above allows the inline import map below; update it if you edit the map -->
+  <title>Rising Eagle Map Editor</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "../../node_modules/three/build/three.module.js",
+        "three/addons/": "../../node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header id="toolbar">
+    <span id="brand" title="Rising Eagle Map Editor">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M2 14 L10 3 L18 14 L13 12 L10 17 L7 12 Z" fill="#4f8cff"/>
+      </svg>
+      RE Map Editor
+    </span>
+    <span class="sep"></span>
+    <button id="btnOpen" title="Open a level folder, e.g. Install_4\data\levels\france\eiffel">Open level…</button>
+    <button id="btnSave" title="Write the edited level script to a new .n2 file (Ctrl+S)">Save .n2…</button>
+    <button id="btnExport" title="Write a complete level folder and rebuild the files that depend on your edits">Export level…</button>
+    <span class="sep"></span>
+    <nav id="tabs">
+      <button data-tab="map" class="active">Map</button>
+      <button data-tab="textures">Textures</button>
+      <button data-tab="info">Level info</button>
+    </nav>
+    <span class="grow"></span>
+    <span id="levelName" class="muted">No level loaded</span>
+  </header>
+
+  <main>
+    <section id="tab-map" class="tab active">
+      <aside id="left">
+        <div class="panel-title">Objects <input id="treeFilter" placeholder="filter by name" spellcheck="false"></div>
+        <div id="tree"></div>
+        <div class="panel-title collapsible" data-target="prefabPanel">Prefabs and entity templates ▾</div>
+        <div id="prefabPanel">
+          <div class="row">
+            <input id="prefabFilter" placeholder="filter" spellcheck="false">
+            <button id="btnSavePrefab" title="Save the selected object as a reusable prefab">Save selected</button>
+          </div>
+          <div id="prefabList"></div>
+        </div>
+      </aside>
+
+      <div id="viewWrap">
+        <div id="viewToolbar">
+          <div class="group" id="gizmoModes">
+            <button data-mode="select" title="Select tool (0): drag a rectangle to select several objects; Ctrl/Shift+drag adds">Select</button>
+            <button data-mode="translate" class="active" title="Move (1)">Move</button>
+            <button data-mode="rotate" title="Rotate (2)">Rotate</button>
+            <button data-mode="scale" title="Scale (3)">Scale</button>
+            <button data-mode="terrain" title="Terrain brush (4)">Terrain</button>
+          </div>
+          <div class="group" id="viewModes">
+            <button data-view="boxes" class="active" title="Bounding boxes only (5)">Boxes</button>
+            <button data-view="solid" title="Solid models (6)">Solid</button>
+            <button data-view="wire" title="Wireframe models (7)">Wire</button>
+            <button data-view="textured" title="Textured models (8)">Textured</button>
+            <label title="See-through models, to look into tunnels and rooms (Solid and Textured views)">Opacity
+              <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1">
+              <span id="opacityVal" class="muted small">100%</span>
+            </label>
+          </div>
+          <div class="group">
+            <label><input type="checkbox" id="chkTerrain" checked> Terrain</label>
+            <label><input type="checkbox" id="chkSpawns" checked> Spawns</label>
+            <label title="What several selected objects rotate and scale around">Pivot
+              <select id="pivotMode">
+                <option value="center">Selection centre</option>
+                <option value="active">Active object</option>
+                <option value="individual">Each own origin</option>
+              </select>
+            </label>
+            <label title="Gizmo axes follow the (active) object's rotation"><input type="checkbox" id="chkLocal"> Local axes</label>
+            <label title="Snap moves to 0.5 m and rotations to 15°"><input type="checkbox" id="chkSnap"> Snap</label>
+          </div>
+          <div class="group">
+            <button id="btnCopy" title="Duplicate selected (Ctrl+D). Ctrl+C / Ctrl+V copy between editor windows">Duplicate</button>
+            <button id="btnDelete" title="Delete selected (Del)">Delete</button>
+            <button id="btnGround" title="Put the selected object on the terrain (G)">To ground</button>
+            <button id="btnFocus" title="Frame selected (F)">Focus</button>
+            <button id="btnUndo" title="Undo (Ctrl+Z)">Undo</button>
+            <button id="btnRedo" title="Redo (Ctrl+Y)">Redo</button>
+          </div>
+        </div>
+        <div id="viewport"></div>
+        <div id="hint" class="muted">Left-drag: orbit · Right-drag: pan · Wheel: zoom to cursor · WASD fly, Q/E down/up, Shift faster · Click: select · Ctrl+click: add/remove · Alt+click: exact part · Right-click: menu · Ctrl+C/Ctrl+V: copy between editors · F: frame · T: top-down</div>
+      </div>
+
+      <aside id="right">
+        <div class="panel-title">Properties</div>
+        <div id="props"><p class="muted">Select an object.</p></div>
+        <div id="terrainPanel" hidden>
+          <div class="panel-title">Terrain brush</div>
+          <div class="form">
+            <label>Tool
+              <select id="brushOp">
+                <option value="raise">Raise</option>
+                <option value="lower">Lower</option>
+                <option value="flatten">Flatten to height</option>
+                <option value="smooth">Smooth</option>
+              </select>
+            </label>
+            <label>Radius (m) <input type="number" id="brushRadius" value="10" min="1" max="200" step="1"></label>
+            <label>Strength <input type="number" id="brushStrength" value="0.3" min="0.01" max="5" step="0.05"></label>
+            <label>Flatten height <input type="number" id="brushHeight" value="0" step="0.1"></label>
+            <p class="muted small">Left-drag on the terrain to paint. Shift+click picks the flatten height. Right-drag still pans the view.</p>
+            <button id="btnTerrainFlat" title="Set the whole terrain to one height">Flatten all…</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section id="tab-textures" class="tab">
+      <aside id="texLeft">
+        <div class="panel-title">Textures <input id="texFilter" placeholder="filter" spellcheck="false"></div>
+        <div class="row">
+          <select id="texRoot">
+            <option value="level">This level</option>
+            <option value="textures">data/textures</option>
+            <option value="atlastextures">data/atlastextures</option>
+            <option value="common">common</option>
+          </select>
+        </div>
+        <div id="texList"></div>
+      </aside>
+      <div id="texMain">
+        <div class="row">
+          <button id="btnTexImport" title="Convert a PNG/JPG/BMP image into a DDS texture">New DDS from image…</button>
+          <button id="btnTexExport" title="Save the shown texture as PNG">Export PNG…</button>
+          <button id="btnTexApply" title="Use the shown texture as DiffMap0 on the selected object's parts">Apply to selected object</button>
+          <span id="texInfo" class="muted"></span>
+        </div>
+        <div id="texPreviewWrap"><canvas id="texCanvas"></canvas></div>
+      </div>
+    </section>
+
+    <section id="tab-info" class="tab">
+      <div class="info-wrap">
+        <p class="muted">Menu texts from <code>&lt;level&gt;.dat</code>. Saved by “Export level…”.</p>
+        <div id="infoForm"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="status">Ready.</footer>
+
+  <dialog id="exportDialog">
+    <form method="dialog" class="form">
+      <h3>Export level</h3>
+      <label>Output folder
+        <span class="row"><input id="expDir" spellcheck="false"><button type="button" id="expPick">…</button></span>
+      </label>
+      <label>Level name (folder and file names)
+        <input id="expName" spellcheck="false">
+      </label>
+      <label>Path inside the game (used for paths written into the level)
+        <input id="expGamePath" spellcheck="false">
+      </label>
+      <label class="check"><input type="checkbox" id="expCopy" checked> Copy the other level files (textures, grass, missions…)</label>
+      <label class="check"><input type="checkbox" id="expLightmap" checked> Rebuild lightmap.mdat for copied, renamed and deleted objects</label>
+      <label class="check"><input type="checkbox" id="expTerrain" checked> Write the edited terrain (heightmap.bmp, height range, runtime terrain)</label>
+      <label class="check"><input type="checkbox" id="expMinimap"> Render new minimaps (level_map.dds, level_map_menu.dds) from a textured top view</label>
+      <label class="check"><input type="checkbox" id="expThumb"> Render the menu picture (&lt;level&gt;.dds) from the current camera</label>
+      <label class="check"><input type="checkbox" id="expBin" checked> Drop the &lt;level&gt;.bin render cache when objects were added or removed</label>
+      <pre id="expLog" class="log"></pre>
+      <div class="row end">
+        <button type="button" id="expRun">Export</button>
+        <button value="close">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app/app.js"></script>
+</body>
+</html>

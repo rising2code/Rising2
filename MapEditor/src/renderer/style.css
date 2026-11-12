@@ -1,0 +1,115 @@
+:root {
+  --bg: #1e1f22;
+  --panel: #26282c;
+  --panel2: #2e3035;
+  --line: #3a3d43;
+  --text: #d8dade;
+  --muted: #8d929b;
+  --accent: #4f8cff;
+  --sel: #2f4f86;
+  --danger: #e0645a;
+  font: 13px/1.35 "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
+body { display: flex; flex-direction: column; }
+button, input, select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; }
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.active { background: var(--sel); border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+input[type=number] { width: 78px; }
+input:focus, select:focus { outline: 1px solid var(--accent); }
+code { background: var(--panel2); padding: 0 4px; border-radius: 3px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.grow { flex: 1; }
+.sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+.row { display: flex; gap: 6px; align-items: center; padding: 4px 6px; }
+.row.end { justify-content: flex-end; }
+.row input { flex: 1; min-width: 0; }
+
+/* the toolbar doubles as the window title bar: drag it to move the window, double-click to maximise */
+#toolbar { display: flex; gap: 6px; align-items: center; height: 40px; padding: 0 150px 0 8px; background: var(--panel); border-bottom: 1px solid var(--line); -webkit-app-region: drag; user-select: none; }
+#toolbar button, #toolbar input, #toolbar select { -webkit-app-region: no-drag; }
+#brand { display: flex; align-items: center; gap: 7px; font-weight: 600; letter-spacing: .02em; margin-right: 6px; white-space: nowrap; }
+#brand svg { flex: none; }
+#levelName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+#tabs { display: flex; gap: 2px; }
+main { flex: 1; min-height: 0; position: relative; }
+.tab { position: absolute; inset: 0; display: none; }
+.tab.active { display: flex; }
+#status { padding: 3px 8px; background: var(--panel); border-top: 1px solid var(--line); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+aside { background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+#left { width: 300px; border-right: 1px solid var(--line); }
+#right { width: 380px; border-left: 1px solid var(--line); overflow: auto; }
+.panel-title { display: flex; gap: 6px; align-items: center; padding: 6px 8px; font-weight: 600; background: var(--panel2); border-bottom: 1px solid var(--line); }
+.panel-title input { flex: 1; font-weight: normal; min-width: 0; }
+.collapsible { cursor: pointer; user-select: none; }
+
+#tree { flex: 1; overflow: auto; font-size: 12px; min-height: 120px; }
+.tnode { display: flex; align-items: center; white-space: nowrap; padding: 1px 4px; cursor: default; }
+.tnode:hover { background: #30333a; }
+.tnode.sel { background: var(--sel); }
+.tnode .tw { width: 14px; text-align: center; color: var(--muted); cursor: pointer; flex: none; }
+.tnode .cls { color: var(--muted); margin-left: 6px; font-size: 11px; }
+.tnode .dot { width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; flex: none; }
+
+#prefabPanel { height: 34%; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+#prefabList { flex: 1; overflow: auto; font-size: 12px; }
+.pitem { padding: 2px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pitem:hover { background: #30333a; }
+.pitem .src { color: var(--muted); font-size: 11px; }
+.pgroup { padding: 4px 8px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+
+#viewWrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#viewToolbar { display: flex; flex-wrap: wrap; gap: 10px; padding: 5px 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
+#viewToolbar .group { display: flex; gap: 3px; align-items: center; }
+#viewToolbar label { display: flex; gap: 3px; align-items: center; margin-right: 6px; }
+#viewport { flex: 1; position: relative; min-height: 0; }
+#viewport canvas { display: block; width: 100%; height: 100%; }
+#hint { padding: 3px 8px; font-size: 12px; background: var(--panel); border-top: 1px solid var(--line); }
+
+#props { padding: 6px 8px; }
+#props h4 { margin: 10px 0 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.kv { display: grid; grid-template-columns: 90px 1fr; gap: 4px 6px; align-items: center; }
+.vec { display: flex; gap: 4px; }
+.vec input { width: 100%; min-width: 0; }
+.cmd { display: grid; grid-template-columns: 130px 1fr 22px; gap: 4px; align-items: center; margin-bottom: 3px; }
+.cmd .cname { font-family: Consolas, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd input { font-family: Consolas, monospace; font-size: 12px; min-width: 0; }
+.cmd button { padding: 0; color: var(--danger); }
+.addcmd { display: grid; grid-template-columns: 130px 1fr 22px; gap: 4px; margin-top: 6px; }
+.addcmd input { min-width: 0; font-family: Consolas, monospace; font-size: 12px; }
+
+.form { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+.form label { display: flex; flex-direction: column; gap: 3px; }
+.form label.check { flex-direction: row; align-items: center; gap: 6px; }
+
+#texLeft { width: 380px; border-right: 1px solid var(--line); }
+#texList { flex: 1; overflow: auto; font-size: 12px; }
+#texMain { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#texPreviewWrap { flex: 1; overflow: auto; padding: 10px;
+  background-color: #2a2a2a;
+  background-image: linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%);
+  background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0; }
+#texCanvas { image-rendering: pixelated; max-width: 100%; }
+
+.info-wrap { padding: 16px; overflow: auto; width: 100%; }
+#infoForm { display: grid; grid-template-columns: 200px 1fr; gap: 6px 10px; max-width: 1100px; }
+#infoForm textarea { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; min-height: 34px; resize: vertical; }
+
+dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; width: 640px; padding: 0; }
+dialog::backdrop { background: rgba(0,0,0,.5); }
+dialog h3 { margin: 0 0 4px; }
+.log { background: #15161a; border: 1px solid var(--line); border-radius: 4px; padding: 6px; max-height: 220px; min-height: 60px; overflow: auto; font-size: 12px; white-space: pre-wrap; margin: 0; }
+
+/* selection rectangle (Select tool) and right-click menu */
+#viewport .selrect { position: absolute; border: 1px solid var(--accent); background: rgba(79, 140, 255, .15); pointer-events: none; }
+#ctxMenu { position: fixed; z-index: 50; min-width: 220px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+#ctxMenu button { display: flex; justify-content: space-between; gap: 18px; width: 100%; text-align: left; background: none; border: none; border-radius: 4px; padding: 5px 10px; }
+#ctxMenu button:hover:not(:disabled) { background: var(--sel); }
+#ctxMenu button kbd { color: var(--muted); font: 11px/1.6 inherit; }
+#ctxMenu hr { border: none; border-top: 1px solid var(--line); margin: 4px 2px; }

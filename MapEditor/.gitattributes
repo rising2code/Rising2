@@ -1,0 +1,2 @@
+# keep LF everywhere: index.html allows its inline import map by a sha256 of its exact bytes
+* text=auto eol=lf

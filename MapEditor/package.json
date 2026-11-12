@@ -1,0 +1,21 @@
+{
+  "name": "rising2-map-editor",
+  "version": "0.1.0",
+  "description": "Map editor for Rising Eagle (Nebula Device 2) levels",
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "electron": "33.2.1"
+  },
+  "allowScripts": {
+    "electron@33.2.1": true
+  }
+}

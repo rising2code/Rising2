@@ -63,6 +63,9 @@ on/off switch and a ▸ button that explains it:
   (`maps\speedgrass*.dds`) stay in the original folder. `lightmap.mdat`, `static.tai` and `speedgrass.tai` point to them there.
   Files the game finds by name in the level's own folder (`grass.dat`, `terrain\`, minimaps, `lightmap.mdat`, `atl*_nl.dds`) are still copied.
   For Eiffel the export shrinks from 71 MB to 41 MB. Only available when the level gets a new name or game path.
+- **Leave the grass out** (off by default): `grass.dat` is a text list with one `b x z size …` line per grass clump
+  (Eiffel: 348,000 lines, 12.6 MB). The game finds it by name, so it cannot be shared; this writes an empty one
+  (same header, no clumps, about 100 bytes). With both options on, Eiffel exports at 28 MB.
 - A second list shows what the export does **not** do yet (re-baking light, grass, mission files…). Those switches cannot be turned on.
 
 | File | What happens |
@@ -114,5 +117,6 @@ Heights are stored as `minHeight + B + G/100 + R/10000` in the 513×513 `heightm
 - Removing `<level>.bin` when objects were added or removed.
 - New textures that are not in a texture atlas (`static.tai`).
 - `static.tai` entries that point into another level's folder (the "point to the original" export option).
+- An empty `grass.dat` (the "leave the grass out" export option).
 - The minimap and menu-picture renders do not draw the game's grass, so they look less green than the originals.
 - Skinned meshes (the flag cloth) are shown in their bind pose, or not at all.

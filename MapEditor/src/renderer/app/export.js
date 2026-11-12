@@ -35,6 +35,11 @@ const STEPS = [
       : !c.pathChanged ? { off: 'The level keeps its own place in the game, so it would point to itself. Give it a new name or game path.' } : null),
   },
   {
+    id: 'nograss', title: 'Leave the grass out (empty grass.dat)', on: false,
+    detail: 'grass.dat is a text list with one line per grass clump ("b x z size …"); Eiffel has 348,000 of them (12.6 MB). The game finds it by name in the level\'s own folder, so it cannot point to another level\'s copy. With this on, the export writes a grass.dat with the same header and texture but no clumps (about 100 bytes): the level has no grass. Not yet tested in game.',
+    state: (c) => (c.sameDir ? { off: 'Would delete the original level\'s grass.' } : !c.hasGrass ? { off: 'This level has no grass.dat.' } : null),
+  },
+  {
     id: 'rename', title: 'Rename the level\'s own files', on: true,
     detail: 'With a new level name, the copied <old>.dat, <old>.dds, <old>.bin and <old>.flsproj become <new>.*, because the game finds them by the level\'s name.',
     state: (c) => (!c.nameChanged ? { off: 'The name is unchanged.' } : !c.copy ? { off: 'Needs "Copy the level folder".' } : { locked: 'Needed for the new name.' }),
@@ -126,6 +131,7 @@ export class ExportDialog {
     document.getElementById('expGamePath').value = lv.gameRel;
     this.lastName = lv.name;
     this.hasMdat = await window.api.exists(join(lv.dir, 'maps', 'lightmap.mdat'));
+    this.hasGrass = await window.api.exists(join(lv.dir, 'grass.dat'));
     for (const st of STEPS) this.wanted[st.id] = st.on; // back to the defaults each time
     this.refresh();
     this.log.textContent = '';
@@ -193,6 +199,7 @@ export class ExportDialog {
       structureChanged: !!lv.structureChanged,
       datDirty: !!lv.datDirty && lv.datText !== null,
       hasMdat: this.hasMdat,
+      hasGrass: this.hasGrass,
       copy: false,
     };
   }
@@ -279,6 +286,7 @@ export class ExportDialog {
     // big textures that can stay in the original folder: the game reaches them through full
     // paths in lightmap.mdat, static.tai and speedgrass.tai, not by looking in the level folder
     const refs = on.refs ? await this.referencedTextures() : [];
+    if (on.nograss) refs.push('grass.dat'); // written empty below instead of copied
     const refSet = new Set(refs.map((f) => f.toLowerCase()));
     const origMaps = `home:${oldRel}/maps/`;
     // paths that must keep pointing to the original folder in reference mode
@@ -290,7 +298,7 @@ export class ExportDialog {
       const r = await window.api.copyDir(lv.dir, outDir, refs);
       this.write(`Copied ${lv.dir} -> ${outDir}`);
       if (on.refs) {
-        this.write(`  not copied: ${r.skipped} textures (${(r.skippedBytes / 1048576).toFixed(1)} MB) — the level points to them in ${origMaps}`);
+        this.write(`  not copied: ${r.skipped - (on.nograss ? 1 : 0)} textures — the level points to them in ${origMaps}`);
         // static.tai names the object atlases as "atlastextures:atl200.dds", which the game reads
         // from the level's own maps folder: point those at the original folder instead
         const tai = join(outDir, 'static.tai');
@@ -313,6 +321,17 @@ export class ExportDialog {
           this.write(`Renamed ${f.name} -> ${renameFile(f.name)}`);
         }
       }
+    }
+
+    // grass: same header and first texture as the original, no clumps
+    if (on.nograss) {
+      const src = await window.api.readText(join(lv.dir, 'grass.dat'));
+      const lines = src.slice(0, 4096).split(/\r?\n/);
+      const data = (lines[1] || '').split(' ');
+      const tex = lines.find((l) => /^textures:/i.test(l)) || 'textures:speedgrass/Grass_10_dry.dds';
+      const out = ['type speedgrass', `Data 1 ${data[2] || 1024} ${data[3] || 80}`, tex, 'Layer 1', tex, ''].join('\r\n');
+      await window.api.writeFile(join(outDir, 'grass.dat'), out);
+      this.write(`Wrote an empty grass.dat (${out.length} bytes instead of ${(src.length / 1048576).toFixed(1)} MB): no grass in this level.`);
     }
 
     // 2. terrain

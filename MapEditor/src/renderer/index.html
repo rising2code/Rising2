@@ -167,12 +167,10 @@
       <label>Path inside the game (used for paths written into the level)
         <input id="expGamePath" spellcheck="false">
       </label>
-      <label class="check"><input type="checkbox" id="expCopy" checked> Copy the other level files (textures, grass, missions…)</label>
-      <label class="check"><input type="checkbox" id="expLightmap" checked> Rebuild lightmap.mdat for copied, renamed and deleted objects</label>
-      <label class="check"><input type="checkbox" id="expTerrain" checked> Write the edited terrain (heightmap.bmp, height range, runtime terrain)</label>
-      <label class="check"><input type="checkbox" id="expMinimap"> Render new minimaps (level_map.dds, level_map_menu.dds) from a textured top view</label>
-      <label class="check"><input type="checkbox" id="expThumb"> Render the menu picture (&lt;level&gt;.dds) from the current camera</label>
-      <label class="check"><input type="checkbox" id="expBin" checked> Drop the &lt;level&gt;.bin render cache when objects were added or removed</label>
+      <div class="steps-head">What the export does <span class="muted small">— switch steps on or off; ▸ explains each one</span></div>
+      <div id="expSteps"></div>
+      <div class="steps-head">Not done by the export <span class="muted small">— not supported yet</span></div>
+      <div id="expUnsupported"></div>
       <pre id="expLog" class="log"></pre>
       <div class="row end">
         <button type="button" id="expRun">Export</button>

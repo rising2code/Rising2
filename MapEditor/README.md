@@ -54,7 +54,11 @@ files, and each part uses the mesh group named by `.setgroupindex`. The Eiffel l
 The textured view hides parts the game does not draw (`.setactive false`, for example the map borders).
 
 ### Level 3: Export level…
-Writes a complete level folder and rebuilds what depends on your edits:
+Writes a complete level folder and rebuilds what depends on your edits. The dialog lists every step with an
+on/off switch and a ▸ button that explains it:
+- Steps that don't apply are switched off with the reason shown (for example "The terrain was not edited").
+- Required steps are locked on.
+- A second list shows what the export does **not** do yet (re-baking light, grass, mission files…). Those switches cannot be turned on.
 
 | File | What happens |
 |---|---|

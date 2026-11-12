@@ -1,0 +1,30 @@
+services:
+  rising2-server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: rising2/dedicated-server:latest
+    container_name: rising2-dedicated
+    restart: unless-stopped
+    # The server registers its own IP with the master server: on a Linux host
+    # use host networking so players see the real address.
+    network_mode: host
+    volumes:
+      # The Rising Eagle install (the folder that has bin/ and data/).
+      # Keep it on a Linux filesystem: a Windows folder mounted through
+      # Docker Desktop is too slow for level loading.
+      - /srv/rising2/Install_4:/game
+    environment:
+      R2_NICK: MyServerNick          # server's own GameSpy account (not a player's)
+      R2_PASS: change-me
+      R2_PROFILE: Eiffel_server      # a [Profile] ProfileName from bin/DedicatedServer.ini
+      # R2_RETRY_WAIT: 10            # seconds to wait after a failed step
+      # R2_TIMEOUT: 600              # give up (container restarts) if not running by then
+    # Extra launcher options, e.g. ["--retry-wait", "15"]
+    command: []
+    # Only if the host's /etc/hosts doesn't already send *.reagspy.com to the GameSpy server:
+    # extra_hosts:
+    #   - "gpcm.reagspy.com:203.0.113.10"
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "3" }

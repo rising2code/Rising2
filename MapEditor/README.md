@@ -58,6 +58,11 @@ Writes a complete level folder and rebuilds what depends on your edits. The dial
 on/off switch and a ▸ button that explains it:
 - Steps that don't apply are switched off with the reason shown (for example "The terrain was not edited").
 - Required steps are locked on.
+- **Point to the original level's big textures instead of copying them** (off by default): for a variant of a level every
+  player already has. The baked-lighting pictures (`maps\lightmap*.dds`), object atlases (`maps\atl*.dds`) and grass atlas
+  (`maps\speedgrass*.dds`) stay in the original folder. `lightmap.mdat`, `static.tai` and `speedgrass.tai` point to them there.
+  Files the game finds by name in the level's own folder (`grass.dat`, `terrain\`, minimaps, `lightmap.mdat`, `atl*_nl.dds`) are still copied.
+  For Eiffel the export shrinks from 71 MB to 41 MB. Only available when the level gets a new name or game path.
 - A second list shows what the export does **not** do yet (re-baking light, grass, mission files…). Those switches cannot be turned on.
 
 | File | What happens |
@@ -108,5 +113,6 @@ Heights are stored as `minHeight + B + G/100 + R/10000` in the 513×513 `heightm
   this was inferred from the code and has not been tried in game.
 - Removing `<level>.bin` when objects were added or removed.
 - New textures that are not in a texture atlas (`static.tai`).
+- `static.tai` entries that point into another level's folder (the "point to the original" export option).
 - The minimap and menu-picture renders do not draw the game's grass, so they look less green than the originals.
 - Skinned meshes (the flag cloth) are shown in their bind pose, or not at all.

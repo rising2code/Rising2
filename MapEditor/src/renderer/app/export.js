@@ -29,6 +29,12 @@ const STEPS = [
     state: (c) => (c.sameDir ? { off: 'The output is the level\'s own folder: nothing to copy.' } : null),
   },
   {
+    id: 'refs', title: 'Point to the original level\'s big textures instead of copying them', on: false,
+    detail: 'For a variant of a level every player already has (e.g. eiffel → eiffel_night). The baked-lighting pictures (maps\\lightmap0..3.dds), the object atlases (maps\\atl*.dds) and the grass atlas (maps\\speedgrass*.dds) are not copied; lightmap.mdat, static.tai and speedgrass.tai point to them in the original folder (home:…/eiffel/maps/…). For Eiffel that is 31 of 71 MB. Files the game finds by name inside the level\'s own folder must still be copied: grass.dat, the terrain folder, the minimaps, lightmap.mdat and the atl*_nl.dds atlases. Object models and textures (data\\meshes, data\\textures) are never copied anyway. The original level must stay installed. Pointing static.tai into another level\'s folder is not yet tested in game.',
+    state: (c) => (!c.copy ? { off: 'Needs "Copy the level folder".' }
+      : !c.pathChanged ? { off: 'The level keeps its own place in the game, so it would point to itself. Give it a new name or game path.' } : null),
+  },
+  {
     id: 'rename', title: 'Rename the level\'s own files', on: true,
     detail: 'With a new level name, the copied <old>.dat, <old>.dds, <old>.bin and <old>.flsproj become <new>.*, because the game finds them by the level\'s name.',
     state: (c) => (!c.nameChanged ? { off: 'The name is unchanged.' } : !c.copy ? { off: 'Needs "Copy the level folder".' } : { locked: 'Needed for the new name.' }),
@@ -221,6 +227,26 @@ export class ExportDialog {
     }
   }
 
+  /**
+   * Textures in the level's maps folder that the game reaches through a full path written in
+   * a file (so they can stay in the original folder): the baked-lighting pictures named in
+   * lightmap.mdat, the grass atlas named in speedgrass.tai and the object atlases named in
+   * static.tai. Returned relative to the level folder, e.g. "maps\lightmap0.dds".
+   */
+  async referencedTextures() {
+    const lv = this.app.level, api = window.api;
+    const names = new Set();
+    const mdat = join(lv.dir, 'maps', 'lightmap.mdat');
+    if (await api.exists(mdat)) for (const r of parseLightmapMdat(await api.readBinary(mdat)).values()) names.add(basename(r.atlas.replace(/\//g, '\\')));
+    const sg = join(lv.dir, 'maps', 'speedgrass.tai');
+    if (await api.exists(sg)) for (const m of (await api.readText(sg)).matchAll(/"[^"]*\/maps\/([^"/]+\.dds)"/gi)) names.add(m[1]);
+    const st = join(lv.dir, 'static.tai');
+    if (await api.exists(st)) for (const m of (await api.readText(st)).matchAll(/"(?:atlastextures:|[^"]*\/maps\/)([^"/]+\.dds)"/gi)) names.add(m[1]);
+    const out = [];
+    for (const n of names) if (await api.exists(join(lv.dir, 'maps', n))) out.push('maps\\' + n);
+    return out;
+  }
+
   write(s) {
     this.log.textContent += s + '\n';
     this.log.scrollTop = this.log.scrollHeight;
@@ -250,10 +276,35 @@ export class ExportDialog {
     };
     const renameFile = (f) => (f.replace(/\.[^.]+$/, '') === oldName ? name + f.slice(oldName.length) : f);
 
+    // big textures that can stay in the original folder: the game reaches them through full
+    // paths in lightmap.mdat, static.tai and speedgrass.tai, not by looking in the level folder
+    const refs = on.refs ? await this.referencedTextures() : [];
+    const refSet = new Set(refs.map((f) => f.toLowerCase()));
+    const origMaps = `home:${oldRel}/maps/`;
+    // paths that must keep pointing to the original folder in reference mode
+    const keepRef = (s) => on.refs && refSet.has(('maps\\' + s.slice(s.lastIndexOf('/') + 1)).toLowerCase())
+      && /\/maps\/[^/]+$/i.test(s);
+
     // 1. copy everything else first, so the rebuilt files overwrite the copies
     if (on.copy) {
-      await window.api.copyDir(lv.dir, outDir);
+      const r = await window.api.copyDir(lv.dir, outDir, refs);
       this.write(`Copied ${lv.dir} -> ${outDir}`);
+      if (on.refs) {
+        this.write(`  not copied: ${r.skipped} textures (${(r.skippedBytes / 1048576).toFixed(1)} MB) — the level points to them in ${origMaps}`);
+        // static.tai names the object atlases as "atlastextures:atl200.dds", which the game reads
+        // from the level's own maps folder: point those at the original folder instead
+        const tai = join(outDir, 'static.tai');
+        if (await window.api.exists(tai)) {
+          let n = 0;
+          const t = (await window.api.readText(tai)).replace(/"atlastextures:([^"]+)"/gi, (m, f) => {
+            if (!refSet.has(('maps\\' + f.replace(/\//g, '\\')).toLowerCase())) return m;
+            n++;
+            return `"${origMaps}${f}"`;
+          });
+          await window.api.writeFile(tai, t);
+          this.write(`  static.tai: ${n} atlas entries now point to ${origMaps}`);
+        }
+      }
       if (on.rename) {
         for (const f of await window.api.list(outDir)) {
           if (f.dir || renameFile(f.name) === f.name) continue;
@@ -293,11 +344,11 @@ export class ExportDialog {
         if (!n.parent || !n.origPath) continue;
         const r = recs.get(lightmapKey(n.origPath));
         if (!r) continue;
-        out.set(lightmapKey(n.path()), { atlas: fixPaths(r.atlas), uv: r.uv });
+        out.set(lightmapKey(n.path()), { atlas: r.atlas, uv: r.uv }); // paths are fixed below
         carried++;
         if (n.path() !== n.origPath) moved++;
       }
-      for (const [k, r] of out) out.set(k, { atlas: fixPaths(r.atlas), uv: r.uv }); // kept records too
+      for (const [k, r] of out) out.set(k, { atlas: keepRef(r.atlas) ? r.atlas : fixPaths(r.atlas), uv: r.uv }); // kept records too
       await window.api.writeFile(join(outDir, 'maps', 'lightmap.mdat'), writeLightmapMdat(out));
       this.write(`Wrote maps/lightmap.mdat: ${out.size} records (was ${recs.size}); ${moved} copied or renamed parts reuse their original's baked lighting. Moved objects keep their old shading (no light re-bake).`);
     }
@@ -311,7 +362,10 @@ export class ExportDialog {
       for (const rel of ['static.tai', 'maps\\speedgrass.tai', name + '.flsproj']) {
         const p = join(outDir, rel);
         if (!(await window.api.exists(p))) continue;
-        await window.api.writeFile(p, fixPaths(await window.api.readText(p)));
+        // quoted path by quoted path, so references to the original level's textures stay
+        const src = await window.api.readText(p);
+        const t = rel.endsWith('.tai') ? src.replace(/"([^"]*)"/g, (m, s) => (keepRef(s) ? m : `"${fixPaths(s)}"`)) : fixPaths(src);
+        await window.api.writeFile(p, t);
         this.write(`Updated paths in ${rel}`);
       }
     }

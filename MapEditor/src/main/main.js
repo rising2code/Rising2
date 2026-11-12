@@ -148,9 +148,23 @@ handle('fs:listRecursive', async (dir, exts) => {
   await walk(dir);
   return out;
 });
-handle('fs:copyDir', async (src, dst) => {
-  await fsp.cp(src, dst, { recursive: true, force: true });
-  return true;
+// `exclude`: paths relative to src (any case, \ or /) that are not copied
+handle('fs:copyDir', async (src, dst, exclude = []) => {
+  const skip = new Set(exclude.map((p) => p.replace(/\//g, '\\').toLowerCase()));
+  let skipped = 0, skippedBytes = 0;
+  await fsp.cp(src, dst, {
+    recursive: true,
+    force: true,
+    filter: (p) => {
+      // Electron hands long-path forms here ("\\?\E:\..."): compare without that prefix
+      const rel = path.relative(src.replace(/^\\\\\?\\/, ''), p.replace(/^\\\\\?\\/, ''));
+      if (!skip.has(rel.toLowerCase())) return true;
+      skipped++;
+      try { skippedBytes += fs.statSync(p).size; } catch { /* gone */ }
+      return false;
+    },
+  });
+  return { skipped, skippedBytes };
 });
 handle('fs:remove', async (p) => {
   await fsp.rm(p, { force: true });

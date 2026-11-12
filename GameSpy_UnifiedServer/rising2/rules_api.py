@@ -73,7 +73,11 @@ class TeamView:
 
 
 class ReportView:
-    def __init__(self, report_id: int, parsed: dict, players: list[dict]) -> None:
+    def __init__(self, report_id: int, parsed: dict, players: list[dict], map_: str = "",
+                 gametype: str = "") -> None:
+        # from the game server's QR2 heartbeats, "" when unknown (docs/map_tracking.md)
+        self.map = map_ or ""
+        self.gametype = gametype or ""
         self.seen_player_keys: set = set()
         self.seen_game_keys: set = set()
         self.seen_team_keys: set = set()

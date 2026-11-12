@@ -123,14 +123,15 @@ class Rules:
                       f"{e!r} - {keep}\n{traceback.format_exc()}")
 
 
-def apply_report(ctx, report_id: int, parsed: dict, players: list[dict], season: str) -> None:
+def apply_report(ctx, report_id: int, parsed: dict, players: list[dict], season: str,
+                 map_: str = "", gametype: str = "") -> None:
     """players: [{idx, ccid, profileid, nick, team, result, keys:{id:value}}]. Stats go to `season`."""
     rules = ctx.rules.get(season)
     if not hasattr(rules, "on_player"):
         log.event("STATS", "APPLY", "ERROR", f"report {report_id} not applied: no working rules for season '{season}'",
                   report=report_id, season=season)
         return
-    rv = ReportView(report_id, parsed, players)
+    rv = ReportView(report_id, parsed, players, map_, gametype)
 
     if getattr(rules, "ONLY_COMPLETE_GAMES", False) and rv.status != "COMPLETE":
         log.event("STATS", "APPLY", "WARN", f"report {report_id} not applied: game status {rv.status} "

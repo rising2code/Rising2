@@ -13,6 +13,7 @@ from .gp import GpcmSession, GpspSession
 from .http_server import HttpSession
 from .net import start_tcp, start_udp
 from .qr2 import Qr2Service
+from .maptrack import MapTracker
 from .sb import SbSession
 from .missing import MissingTracker
 from .rules_engine import Rules
@@ -34,6 +35,7 @@ class App:
         self.rules = Rules()
         self.missing = MissingTracker()
         self.qr2 = Qr2Service(self)
+        self.maptrack = MapTracker(self)
         self.maintenance = Maintenance(self)
 
 
@@ -45,6 +47,7 @@ async def main() -> int:
     log.event("CORE", "CONFIG", "INFO", " ".join(f"{k}={v}" for k, v in cfg.items()))
 
     app = App()
+    app.maptrack.start()
     failures = []
 
     async def guarded(name, coro):

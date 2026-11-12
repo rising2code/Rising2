@@ -155,6 +155,9 @@ class Qr2Service(UdpService):
             if keys.get("gamename", "").lower() != Config.GAMENAME:
                 log.event("QR2", "HEARTBEAT", "WARN", f"ignored: gamename '{keys.get('gamename')}'", ip=addr)
                 return
+            tracker = getattr(self.ctx, "maptrack", None)
+            if tracker:
+                tracker.on_heartbeat(addr[0], keys, players)
             if srv is None:
                 srv = self.pending.get(key) or GameServer(addr[0], addr[1])
                 srv.keys, srv.players, srv.teams = keys, players, teams

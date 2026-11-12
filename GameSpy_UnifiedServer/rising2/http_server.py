@@ -160,7 +160,7 @@ class HttpSession(TcpSession):
                                 for u in self.ctx.db.login.all_users()]}
         elif lpath == "/rising2/reports":
             data = st.q("SELECT id, season, csid, ccid, received, submitter_ip, raw_size, parse_ok, parse_error, "
-                        "game_status, player_count, team_count, applied FROM comp_reports ORDER BY id DESC LIMIT 200")
+                        "game_status, player_count, team_count, applied, map, gametype FROM comp_reports ORDER BY id DESC LIMIT 200")
         elif lpath == "/rising2/report":
             rid = q.get("id", "0")
             r = st.q1("SELECT * FROM comp_reports WHERE id=?", (rid,))

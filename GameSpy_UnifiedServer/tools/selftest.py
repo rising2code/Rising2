@@ -93,9 +93,13 @@ def main() -> int:
                                                           "config", "seasons"),
                     help="the server's config/seasons folder (season test runs only if it exists)")
     ap.add_argument("--no-season-test", action="store_true")
+    ap.add_argument("--tag", help="fixed account suffix (alice_<tag>), e.g. to list alice_<tag> in R2_SERVER_ACCOUNTS")
+    ap.add_argument("--expect-map", default="",
+                    help="map the match report must get (x_range when the server runs with "
+                         "R2_SERVER_ACCOUNTS=127.0.0.1:29023=alice_<tag>); default: map must be \"\"")
     a = ap.parse_args()
     H = a.host
-    tag = "".join(random.choice(string.ascii_lowercase) for _ in range(5))
+    tag = a.tag or "".join(random.choice(string.ascii_lowercase) for _ in range(5))
     users = [(f"alice_{tag}", "pw_alice", f"alice_{tag}@test.local"), (f"bob_{tag}", "pw_bob", f"bob_{tag}@test.local")]
     profiles = {}
 
@@ -282,6 +286,14 @@ def main() -> int:
 
     x = submit(csid, hccid, ccids)
     check("Competition SubmitReport (DIME)", "<ns1:result>0<" in x)
+
+    import json as _json
+    c = http.client.HTTPConnection(H, a.http_port, timeout=5)
+    c.request("GET", "/rising2/reports")
+    reps = _json.loads(c.getresponse().read() or b"[]")
+    c.close()
+    got_map = next((r.get("map") for r in reps if r.get("csid") == csid), None)
+    check(f"Report map is {a.expect_map!r} (map tracking)", got_map == a.expect_map, f"got {got_map!r}")
 
     after = {n: sake_stats(n)[0] for n, _, _ in users}
     a0, b0 = before[users[0][0]], after[users[0][0]]

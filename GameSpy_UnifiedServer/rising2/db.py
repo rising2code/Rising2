@@ -43,6 +43,16 @@ def _columns(con: sqlite3.Connection, table: str) -> list[str] | None:
     return cols or None  # None = table does not exist
 
 
+def _migrate_stats(con: sqlite3.Connection):
+    """All stats DB migrations. Runs before the schema script; returns a step to run after it."""
+    cols = _columns(con, "comp_reports")
+    for c in ("map", "gametype"):
+        if cols and c not in cols:
+            con.execute(f"ALTER TABLE comp_reports ADD COLUMN {c} TEXT NOT NULL DEFAULT ''")
+            log.event("CORE", "DB", "WARN", f"migrated comp_reports: added {c} column (old reports -> '')")
+    return _migrate_seasons(con)
+
+
 def _migrate_seasons(con: sqlite3.Connection):
     """Databases from before seasons: add a `season` column (old data -> DEFAULT_SEASON).
     Runs before the schema script; returns a step to run after it (or None)."""
@@ -169,7 +179,7 @@ class LoginDB:
 
 class StatsDB:
     def __init__(self, path: str) -> None:
-        self.con = _open(path, "schema_stats.sql", _migrate_seasons)
+        self.con = _open(path, "schema_stats.sql", _migrate_stats)
 
     def q(self, sql: str, args: tuple = ()) -> list[dict]:
         return [dict(r) for r in self.con.execute(sql, args)]

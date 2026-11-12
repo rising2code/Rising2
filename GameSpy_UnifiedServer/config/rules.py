@@ -25,6 +25,8 @@ player in it, on_player(report, player, row) is called, and it runs three steps:
 
     report.id, report.status ("COMPLETE" / "PARTIAL" / "BROKEN")
     report.game      {key_id: value}  game-wide keys (the official server sends none)
+    report.map, report.gametype       from the game server's QR2 heartbeats; "" when unknown
+                                      (needs R2_SERVER_ACCOUNTS, see docs/map_tracking.md)
     report.teams     [team.keys, team.result, ...]
     report.players   all players
 
@@ -198,6 +200,7 @@ def default_columns(report, player, row):
 #   row                  the row AFTER default_columns() ran (lifetime totals incl. this match)
 #   before               the row as it was BEFORE this match
 #   report.players       everyone in the match (compare against others)
+#   report.map           map of the match, "" when unknown (e.g.  if report.map == "x_range": ...)
 #
 # The default is what the original game did: the sum of the six class skills of the match.
 # It is the fallback for every season whose config/seasons/<season>.py does not define its own.

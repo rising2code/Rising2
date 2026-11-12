@@ -66,6 +66,12 @@ def handle(op: Node, ctx, ip: str, raw_body: bytes, content_type: str) -> bytes:
         log.event("COMP", name.upper(), "INFO", "stats session created (game server passed the stats gate)",
                   user=cert_nick, ip=ip, csid=csid, ccid=ccid, season=season, gameid=gameid,
                   platformid=op.get("platformid"), cert_profileid=cert_pid)
+        tracker = getattr(ctx, "maptrack", None)
+        if tracker and tracker.enabled:
+            m, gt = tracker.current(cert_pid, cert_nick)
+            log.event("MAP", "MATCH", "INFO", f"match starts on map {m!r}" if m else
+                      "no heartbeat known for this server yet (map decided at SubmitReport)",
+                      user=cert_nick, ip=ip, csid=csid, gametype=gt or None)
         return _resp(name, 0, None, csid, ccid)
 
     if name == "SetReportIntention":
@@ -107,7 +113,7 @@ def submit_report(op: Node, ctx, ip: str, raw_body: bytes, content_type: str, ce
         with open(raw_name + ".report.bin", "wb") as f:
             f.write(report_bytes)
     # the report belongs to the season its session started in (a season switch mid-match doesn't move it)
-    sess = st.q1("SELECT season FROM comp_sessions WHERE csid=?", (csid,)) if csid else None
+    sess = st.q1("SELECT season, created FROM comp_sessions WHERE csid=?", (csid,)) if csid else None
     season = sess["season"] if sess else ctx.rules.current_season()
     rid = st.x("INSERT INTO comp_reports (csid, ccid, received, submitter_ip, authoritative, raw_file, raw_size, season) "
                "VALUES (?,?,?,?,?,?,?,?)",
@@ -188,7 +194,13 @@ def submit_report(op: Node, ctx, ip: str, raw_body: bytes, content_type: str, ce
     if is_profile_report(players):
         apply_profile_report(ctx, rid, players, cert_pid, ip)
     else:
-        apply_report(ctx, rid, parsed, players, season)
+        map_, gametype = "", ""
+        tracker = getattr(ctx, "maptrack", None)
+        if tracker:
+            map_, gametype = tracker.for_report(cert_pid, cert_nick, sess["created"] if sess else None,
+                                                {p["nick"] for p in players if p["nick"]}, report=rid, csid=csid)
+        st.x("UPDATE comp_reports SET map=?, gametype=? WHERE id=?", (map_, gametype, rid))
+        apply_report(ctx, rid, parsed, players, season, map_=map_, gametype=gametype)
     st.x("UPDATE comp_reports SET applied=1 WHERE id=?", (rid,))
     return _resp("SubmitReport", 0)
 

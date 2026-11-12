@@ -104,6 +104,22 @@ sends it back with its report, so players are matched even when they all share
 one IP (confirmed with the real game). There is no matching by IP: a player
 whose certificate has no known profileid is **not** credited, and a WARN line says so.
 
+### Map of a match (`R2_SERVER_ACCOUNTS`)
+
+The match report has no map. QR2 heartbeats do, but they never say which account a
+game server uses, so the link is configured: give **every dedicated server its own GP
+account** and list them as `IP:HOSTPORT=NICK`:
+
+```
+R2_SERVER_ACCOUNTS=1.2.3.4:27015=srv_eu1,1.2.3.4:27016=srv_eu2
+```
+
+`HOSTPORT` is the game port players join on (the `hostport` in its heartbeat), not the QR2
+port. The rules then get `report.map` / `report.gametype` (also stored on the report), chosen
+from the last 5 heartbeats of that server during the match. Without the setting, for LAN
+games, or for an unlisted account they are `""`, and a `[MAP]` log line says why.
+Why it works this way and what was considered: `docs/map_tracking.md`.
+
 ### Stats rules: `config/rules.py`
 
 All stats logic is one Python file. For each player in a match report the server calls
@@ -280,6 +296,7 @@ JSON pages: `http://<server>/rising2/status` (includes the current `season` and 
 | `R2_QR_SERVER_TIMEOUT` | `30` | seconds before a silent game server is dropped |
 | `R2_ENABLE_NATNEG_LOGGER` | `1` | listen on 27901 just to log |
 | `R2_MOTD` | `Welcome to Rising2` | message of the day |
+| `R2_SERVER_ACCOUNTS` | empty | `IP:HOSTPORT=NICK,...`: which GP account each dedicated server uses, turns on map tracking |
 | `R2_ADMIN_TOKEN` | empty | bearer token for `/rising2/admin/*`; empty = endpoints off ([Managed accounts](#managed-accounts)) |
 | `R2_DISABLE_NEWUSER` | `0` | `1` = refuse the game's own account creation |
 | `R2_PASS_TTL_IDLE` | `1h` | managed password: life after create/reset and after each logout |
@@ -343,6 +360,10 @@ docker run -d --name r2test rising2/gamespy-unified:latest
 ```bash
 docker exec r2test python tools/selftest.py
 ```
+
+It expects the report's map to be `""`. To test map tracking, start the instance with
+`-e R2_SERVER_ACCOUNTS=127.0.0.1:29023=alice_maptst` and run
+`python tools/selftest.py --tag maptst --expect-map x_range`.
 
 ## Known gaps
 

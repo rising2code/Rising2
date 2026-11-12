@@ -52,7 +52,9 @@ CREATE TABLE IF NOT EXISTS comp_reports (
     team_count    INTEGER,
     applied       INTEGER NOT NULL DEFAULT 0,
     parsed_json   TEXT,
-    season        TEXT    NOT NULL DEFAULT 'preseason'  -- the session's season
+    season        TEXT    NOT NULL DEFAULT 'preseason', -- the session's season
+    map           TEXT    NOT NULL DEFAULT '',          -- from QR2 heartbeats, '' = unknown (docs/map_tracking.md)
+    gametype      TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS ix_reports_season ON comp_reports(season, id);
 

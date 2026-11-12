@@ -106,7 +106,7 @@ def main(argv: list[str]) -> int:
     elif cmd == "reports":
         n = int(args[0]) if args else 20
         for r in ctx.db.stats.q("SELECT id, season, csid, received, submitter_ip, raw_size, parse_ok, parse_error, "
-                                "player_count, applied FROM comp_reports ORDER BY id DESC LIMIT ?", (n,)):
+                                "player_count, applied, map, gametype FROM comp_reports ORDER BY id DESC LIMIT ?", (n,)):
             print(r)
     elif cmd == "report":
         r = ctx.db.stats.q1("SELECT * FROM comp_reports WHERE id=?", (args[0],))

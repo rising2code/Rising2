@@ -41,6 +41,8 @@ services:
       R2_LOG_LEVEL: DEBUG          # DEBUG = hex dumps + full SOAP bodies, INFO = one line per event
       # R2_SB_OVERRIDE_SERVER_IP: 203.0.113.10
       # R2_MOTD: "Welcome to Rising2"
+      # map of each match (docs/map_tracking.md): IP:HOSTPORT=NICK of every dedicated server
+      # R2_SERVER_ACCOUNTS: "203.0.113.10:27015=srv_eu1,203.0.113.10:27016=srv_eu2"
       # Managed accounts (README "Managed accounts"):
       # R2_ADMIN_TOKEN: <long random string>   # turns on /rising2/admin/create and /reset
       # R2_DISABLE_NEWUSER: 1                  # refuse the game's own "create account"

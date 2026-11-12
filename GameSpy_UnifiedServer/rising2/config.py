@@ -84,6 +84,11 @@ class Config:
 
     MOTD = _env("R2_MOTD", "Welcome to Rising2")
 
+    # Map tracking (docs/map_tracking.md): which GP account each dedicated server logs in with,
+    # as IP:HOSTPORT=NICK,...  (HOSTPORT = the game port from its heartbeat, not the QR2 port).
+    # Empty = off, and report.map is "" in the rules.
+    SERVER_ACCOUNTS = _env("R2_SERVER_ACCOUNTS", "")
+
     # Accounts managed by another system (README "Managed accounts").
     # Bearer token for /rising2/admin/*; empty = those endpoints are off (404).
     ADMIN_TOKEN = _env("R2_ADMIN_TOKEN", "")

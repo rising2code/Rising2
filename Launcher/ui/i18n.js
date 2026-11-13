@@ -3,7 +3,7 @@
 // {name} placeholders are filled from args. Message codes from Go (Msg.Code) live here too.
 const I18N = {
   he: {
-    "lang.name": "עברית", "lang.short": "HE", "lang.tip": "שפה: עברית\nלחץ למעבר לאנגלית",
+    "lang.he": "עברית (ישראל)", "lang.en": "אנגלית (ארצות הברית)", "lang.tip": "שפת הממשק",
     "win.zoomOut": "טקסט קטן יותר (Ctrl -)", "win.zoomIn": "טקסט גדול יותר (Ctrl +)",
     "win.min": "מזער", "win.close": "סגור",
     "nav.tools": "כלים", "nav.knowledge": "ידע",
@@ -55,7 +55,7 @@ const I18N = {
     "err.system": "{detail}",
   },
   en: {
-    "lang.name": "English", "lang.short": "EN", "lang.tip": "Language: English\nClick to switch to Hebrew",
+    "lang.he": "Hebrew (Israel)", "lang.en": "English (United States)", "lang.tip": "Interface language",
     "win.zoomOut": "Smaller text (Ctrl -)", "win.zoomIn": "Bigger text (Ctrl +)",
     "win.min": "Minimize", "win.close": "Close",
     "nav.tools": "Tools", "nav.knowledge": "Knowledge",

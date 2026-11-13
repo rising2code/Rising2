@@ -59,9 +59,10 @@ function applyI18n() {
     const raw = I18N[LANG][el.dataset.i18nHtml] ?? I18N.en[el.dataset.i18nHtml];
     el.innerHTML = esc(raw).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? `<code>${esc(vars[k])}</code>` : m));
   });
-  const lb = $("#langBar");
-  lb.textContent = t("lang.short");
-  lb.title = t("lang.tip");
+  $("#langCode").textContent = LANG.toUpperCase();
+  $("#langName").textContent = t("lang." + LANG);
+  $("#langBar").title = t("lang.tip");
+  $$("#langMenu [data-lang]").forEach((b) => b.setAttribute("aria-checked", b.dataset.lang === LANG));
   renderWho(); renderHostsPill(); renderLinksPill(); tick(); syncOnline();
   if (currentInfo) showInfo(currentInfo, false);
 }
@@ -72,7 +73,20 @@ function setLang(lang) {
   applyI18n();
   log(t("con.lang"));
 }
-$("#langBar").onclick = () => setLang(LANG === "he" ? "en" : "he");
+// Language bar menu: opens above the taskbar, closes on pick, outside click or Esc.
+const langMenu = $("#langMenu");
+function langMenuOpen(open) {
+  langMenu.hidden = !open;
+  $("#langBar").setAttribute("aria-expanded", open);
+  if (open) langMenu.querySelector(`[data-lang="${LANG}"]`).focus();
+}
+$("#langBar").onclick = () => langMenuOpen(langMenu.hidden);
+$$("#langMenu [data-lang]").forEach((b) => (b.onclick = () => {
+  langMenuOpen(false);
+  if (b.dataset.lang !== LANG) setLang(b.dataset.lang);
+}));
+document.addEventListener("mousedown", (e) => { if (!e.target.closest?.(".langwrap")) langMenuOpen(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") langMenuOpen(false); });
 
 // ---------- Hacker console ----------
 const consoleEl = $("#console");

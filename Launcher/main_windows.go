@@ -197,6 +197,13 @@ func handlers(w webview2.WebView, hwnd uintptr) map[string]handler {
 				return nil, err
 			}
 			req.Exe = strings.Trim(strings.TrimSpace(req.Exe), `"`)
+			if IsLnk(req.Exe) {
+				target, err := ResolveLnk(req.Exe)
+				if err != nil {
+					return nil, M("err.lnk", "name", filepath.Base(req.Exe))
+				}
+				req.Exe = target
+			}
 			return privileged("dup", req, func() (Msg, error) { return CreateDups(req) })
 		},
 

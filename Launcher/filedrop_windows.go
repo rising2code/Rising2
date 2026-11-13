@@ -124,6 +124,11 @@ func enableFileDrop(w webview2.WebView) bool {
 	defer comRelease(core)
 
 	onDropPath = func(path string) {
+		if IsLnk(path) { // a shortcut: use the file it points to
+			if target, err := ResolveLnk(path); err == nil {
+				path = target
+			}
+		}
 		b, _ := json.Marshal(path)
 		w.Eval("window.__dropped && window.__dropped(" + string(b) + ")")
 	}

@@ -13,7 +13,7 @@ const call = (() => {
     if (p) r.ok ? p.resolve(r.value) : p.reject(new Error(r.value));
   };
   return (method, args = null) => {
-    if (method.startsWith("win.")) { window.__rpc(0, method, null); return Promise.resolve(); }
+    if (method.startsWith("win.")) { window.__rpc(0, method, args); return Promise.resolve(); }
     return new Promise((resolve, reject) => {
       const id = ++seq;
       pending[id] = { resolve, reject };
@@ -24,6 +24,7 @@ const call = (() => {
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const store = {
   get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
@@ -69,12 +70,60 @@ async function run(btn, label, fn) {
 }
 
 // ---------- Window chrome ----------
-$("#titlebar").addEventListener("mousedown", (e) => {
-  if (e.button === 0 && !e.target.closest("button")) call("win.drag");
+// The page fills the whole window, so it finds the edge under the mouse itself and
+// asks Windows to start a native resize (or a move, from the title bar).
+const EDGE = 6;
+const root = document.documentElement;
+function edgeAt(e) {
+  const v = e.clientY < EDGE ? "t" : e.clientY >= innerHeight - EDGE ? "b" : "";
+  const h = e.clientX < EDGE ? "l" : e.clientX >= innerWidth - EDGE ? "r" : "";
+  return v + h;
+}
+document.addEventListener("mousemove", (e) => {
+  const edge = e.buttons ? "" : edgeAt(e);
+  if (root.dataset.edge !== edge) root.dataset.edge = edge;
+});
+document.addEventListener("mouseleave", () => (root.dataset.edge = ""));
+document.addEventListener("mousedown", (e) => {
+  if (e.button !== 0) return;
+  const edge = edgeAt(e);
+  if (edge) { e.preventDefault(); call("win.drag", edge); return; }
+  if (e.target.closest("#titlebar") && !e.target.closest("button")) call("win.drag", "move");
 });
 $("#btnMin").onclick = () => call("win.minimize");
 $("#btnClose").onclick = () => call("win.close");
 document.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// Text size: CSS zoom re-flows the layout (unlike transform: scale). Title bar stays put.
+const ZOOMS = [0.8, 0.9, 1, 1.1, 1.25, 1.4, 1.6];
+let zoomIdx = ZOOMS.indexOf(parseFloat(store.get("zoom", "1")));
+if (zoomIdx < 0) zoomIdx = ZOOMS.indexOf(1);
+function setZoom(i, announce = true) {
+  zoomIdx = Math.min(ZOOMS.length - 1, Math.max(0, i));
+  root.style.setProperty("--zoom", ZOOMS[zoomIdx]);
+  store.set("zoom", ZOOMS[zoomIdx]);
+  $("#btnZoomOut").disabled = zoomIdx === 0;
+  $("#btnZoomIn").disabled = zoomIdx === ZOOMS.length - 1;
+  if (announce) log(`Text size ${Math.round(ZOOMS[zoomIdx] * 100)}%`);
+}
+$("#btnZoomOut").onclick = () => setZoom(zoomIdx - 1);
+$("#btnZoomIn").onclick = () => setZoom(zoomIdx + 1);
+document.addEventListener("keydown", (e) => {
+  if (!e.ctrlKey) return;
+  const step = { "=": 1, "+": 1, "-": -1, "0": 0 }[e.key];
+  if (step === undefined) return;
+  e.preventDefault();
+  setZoom(step === 0 ? ZOOMS.indexOf(1) : zoomIdx + step);
+});
+setZoom(zoomIdx, false);
+
+// Any element with data-url opens in the default browser.
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-url]");
+  if (!a) return;
+  e.preventDefault();
+  call("open.url", a.dataset.url).catch((err) => log("ERROR: " + err.message, "err"));
+});
 
 // Ripple on every button.
 document.addEventListener("pointerdown", (e) => {
@@ -181,32 +230,100 @@ $("#btnPick").onclick = async () => {
   if (p) { dupExe.value = p; store.set("exe", p); }
 };
 $("#btnDup").onclick = (e) => {
-  const req = {
-    exe: dupExe.value.trim().replace(/^"|"$/g, ""),
-    count: parseInt($("#dupCount").value, 10) || 0,
-    log: $("#dupLog").checked,
-    storage: $("#dupStorage").checked,
-  };
+  const req = { exe: dupExe.value.trim(), count: parseInt($("#dupCount").value, 10) || 0 };
   if (!req.exe) { log("Choose RisingEagle.exe first.", "warn"); return; }
   run(e.currentTarget, `Creating ${req.count} copies`, () => call("dup.create", req));
 };
 
 // ---------- 3] Info ----------
+// Minimal RTF -> HTML for the notes written in WordPad: colors, highlight, bold,
+// italic, underline and fonts. Paragraph layout and font sizes are ignored.
+const BS = "\\";
+function rtfToHtml(rtf) {
+  const colors = [null];
+  const ct = /\{\\colortbl\s*;?([^}]*)\}/.exec(rtf);
+  if (ct) ct[1].split(";").slice(0, -1).forEach((c) => {
+    const n = (k) => +((new RegExp("\\\\" + k + "(\\d+)").exec(c) || [0, 0])[1]);
+    colors.push(`rgb(${n("red")},${n("green")},${n("blue")})`);
+  });
+  const fonts = {};
+  for (const m of rtf.matchAll(/\{\\f(\d+)(?:\\[a-z]+-?\d*)*\s+([^;}]*);\}/g)) fonts[m[1]] = m[2].trim();
+  const cp1252 = new TextDecoder("windows-1252");
+  const SKIP = new Set(["fonttbl", "colortbl", "stylesheet", "info", "generator", "pict", "header", "footer"]);
+
+  let st = { b: 0, i: 0, u: 0, fg: 0, bg: 0, f: "0", skip: false };
+  const stack = [];
+  let html = "", run = "";
+  const flush = () => {
+    if (!run) return;
+    const css = [];
+    if (st.b) css.push("font-weight:bold");
+    if (st.i) css.push("font-style:italic");
+    if (st.u) css.push("text-decoration:underline");
+    if (colors[st.fg]) css.push("color:" + colors[st.fg]);
+    if (colors[st.bg]) css.push("background:" + colors[st.bg]);
+    const font = fonts[st.f];
+    if (font) css.push(`font-family:'${font}',${/courier|consol|mono/i.test(font) ? "monospace" : "Tahoma,sans-serif"}`);
+    html += css.length ? `<span style="${css.join(";")}">${esc(run)}</span>` : esc(run);
+    run = "";
+  };
+  const text = (t) => { if (!st.skip) run += t; };
+  const set = (k, v) => { if (st[k] !== v) { flush(); st[k] = v; } };
+
+  let i = 0;
+  while (i < rtf.length) {
+    const c = rtf[i];
+    if (c === "{") { stack.push({ ...st }); i++; continue; }
+    if (c === "}") { flush(); st = stack.pop() || st; i++; continue; }
+    if (c === "\r" || c === "\n") { i++; continue; }
+    if (c !== BS) { text(c); i++; continue; }
+    const nx = rtf[i + 1];
+    if (nx === BS || nx === "{" || nx === "}") { text(nx); i += 2; continue; }
+    if (nx === "~") { text("\u00a0"); i += 2; continue; }
+    if (nx === "*") { st.skip = true; i += 2; continue; }
+    if (nx === "'") {
+      const code = parseInt(rtf.substr(i + 2, 2), 16);
+      text(fonts[st.f] === "Symbol" && code === 0xb7 ? "•" : cp1252.decode(Uint8Array.of(code)));
+      i += 4; continue;
+    }
+    const m = /^\\([a-z]+)(-?\d+)? ?/.exec(rtf.slice(i, i + 40));
+    if (!m) { i += 2; continue; }
+    i += m[0].length;
+    const w = m[1], n = m[2] === undefined ? 1 : +m[2];
+    if (SKIP.has(w)) st.skip = true;
+    else if (w === "par" || w === "line") text("\n");
+    else if (w === "tab") text("\t");
+    else if (w === "b") set("b", n);
+    else if (w === "i") set("i", n);
+    else if (w === "ul") set("u", n);
+    else if (w === "ulnone") set("u", 0);
+    else if (w === "cf") set("fg", n);
+    else if (w === "highlight" || w === "cb") set("bg", n);
+    else if (w === "f") set("f", String(n));
+    else if (w === "plain") { set("b", 0); set("i", 0); set("u", 0); set("fg", 0); set("bg", 0); }
+    else if (w === "u") { text(String.fromCharCode(n < 0 ? n + 65536 : n)); if (rtf[i] !== BS) i++; }
+  }
+  flush();
+  return html.replace(/\s+$/, "");
+}
+
 let infoTexts = {};
 function showInfo(name) {
   $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.info === name));
-  const pre = $("#infoText");
-  pre.textContent = infoTexts[name] || "";
-  pre.scrollTop = 0;
-  pre.classList.remove("fade-in");
-  void pre.offsetWidth;
-  pre.classList.add("fade-in");
+  const panel = $("#infoText");
+  const src = infoTexts[name] || "";
+  const isRtf = src.trimStart().startsWith("{" + BS + "rtf");
+  panel.classList.toggle("plain", !isRtf);
+  panel.innerHTML = isRtf ? rtfToHtml(src) : esc(src);
+  panel.scrollTop = 0;
+  panel.classList.remove("fade-in");
+  void panel.offsetWidth;
+  panel.classList.add("fade-in");
 }
 $$(".tab").forEach((t) => (t.onclick = () => showInfo(t.dataset.info)));
 
 // ---------- 4] Links ----------
 let linksLoaded = false;
-const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function renderLinks(text) {
   return text.split("\n").map((l) => {
     const h = l.match(/^(#{1,3})\s+(.*)$/);
@@ -223,26 +340,22 @@ async function loadLinks() {
     box.innerHTML = renderLinks(r.text);
     box.classList.remove("fade-in"); void box.offsetWidth; box.classList.add("fade-in");
     pill.className = "pill " + (r.online ? "ok" : "warn");
-    pill.textContent = r.online ? "latest from GitHub" : "offline copy";
-    pill.title = r.error || "";
+    pill.textContent = r.online ? "latest from GitHub releases" : "offline copy · open GitHub releases";
+    pill.title = (r.error ? r.error + "\n" : "") + "Open " + pill.dataset.url;
     return r.online ? "Links updated." : "Offline, showing built-in links (" + r.error + ")";
   });
 }
 $("#btnLinks").onclick = loadLinks;
-$("#linksBox").addEventListener("click", (e) => {
-  const a = e.target.closest("a[data-url]");
-  if (a) call("open.url", a.dataset.url).catch((err) => log("ERROR: " + err.message, "err"));
-});
 
 // ---------- Boot ----------
 (async function boot() {
   log("RISING2 LAUNCHER // booting");
   try {
     const b = await call("app.boot");
-    $("#ver").textContent = "v" + b.version;
+    $("#ver").textContent = b.version;
     $("#hostsPath").textContent = b.hostsPath;
     $("#who").innerHTML = (b.elevated ? "🛡 Running as admin" : "👤 Normal user<br>(asks for admin only when needed)") +
-      "<br>WebView2 " + esc(b.webview || "?");
+      "<br>WebView2 " + esc(b.webview || "?") + "<br>Launcher " + esc(b.version);
     defaultDomains = b.domains;
     infoTexts = b.info;
     $("#domains").value = store.get("domains", "") || defaultDomains.join("\n");
@@ -263,9 +376,14 @@ function mockCall(method, args) {
   const wait = (v, ms = 500) => new Promise((r) => setTimeout(() => r(v), ms));
   switch (method) {
     case "app.boot": return wait({
-      version: "dev", elevated: false, webview: "mock", hostsPath: "C:\\Windows\\System32\\drivers\\etc\\hosts",
+      version: "abc1234+dirty", elevated: false, webview: "mock", hostsPath: "C:\\Windows\\System32\\drivers\\etc\\hosts",
       domains: ["gpcm.reagspy.com", "gpsp.reagspy.com", "master.reagspy.com"],
-      info: { "exe-args.txt": "-fullscreen   (preview text)", "admin-commands.txt": "sudo help", "tcl-basics.txt": "sel /sys/", "tcl-example.tcl": "proc x {} {}" },
+      info: {
+        "exe-args.txt": "-fullscreen   (preview text)",
+        "admin-commands.rtf": String.raw`{\rtf1{\fonttbl{\f0\fnil Segoe UI;}}{\colortbl ;\red255\green255\blue0;}\f0 sudo \b help\b0\par    this help\par \highlight1\b # note\highlight0\b0 : x\par}`,
+        "tcl-basics.rtf": "sel /sys/",
+        "tcl-example.rtf": String.raw`{\rtf1{\fonttbl{\f0\fnil Courier New;}}{\colortbl ;\red0\green128\blue0;\red0\green0\blue255;}\f0\cf1 # comment\par\cf2\b proc\cf0\b0  x \{\{desc ""\}\} \{\par\}}`,
+      },
     }, 50);
     case "hosts.status": return wait([]);
     case "hosts.apply": return args.ip ? wait(`Redirected ${args.domains.length} domains to ${args.ip}.`, 1200) : wait("Removed all Rising Eagle redirects.");

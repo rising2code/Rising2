@@ -61,7 +61,7 @@ func TestDups(t *testing.T) {
 	src := []byte("MZ....game.log....storage.dat....game.log")
 	os.WriteFile(exe, src, 0o644)
 
-	msg, err := CreateDups(DupRequest{Exe: exe, Count: 3, Log: true, Storage: true})
+	msg, err := CreateDups(DupRequest{Exe: exe, Count: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,15 +75,11 @@ func TestDups(t *testing.T) {
 		t.Fatal("made too many copies")
 	}
 
-	// Checkboxes are honoured (they were ignored in REExtraUtils).
-	b, _ = PatchDup(src, 7, DupRequest{Storage: true})
-	if string(b) != "MZ....game.log....storage.d07....game.log" {
-		t.Fatalf("storage only = %q", b)
+	// Both patterns are required.
+	if _, err := PatchDup([]byte("only game.log here"), 0); err == nil {
+		t.Fatal("expected storage.dat not-found error")
 	}
-	if _, err := PatchDup([]byte("no patterns here"), 0, DupRequest{Log: true}); err == nil {
-		t.Fatal("expected not-found error")
-	}
-	if _, err := CreateDups(DupRequest{Exe: exe, Count: 100, Log: true}); err == nil {
+	if _, err := CreateDups(DupRequest{Exe: exe, Count: 100}); err == nil {
 		t.Fatal("expected count error")
 	}
 }

@@ -1,0 +1,55 @@
+{\rtf1\ansi\ansicpg1252\deff0\nouicompat\deflang1033{\fonttbl{\f0\fnil Segoe UI;}{\f1\fnil\fcharset0 Segoe UI;}}
+{\colortbl ;\red255\green255\blue0;}
+{\*\generator Riched20 10.0.19041}\viewkind4\uc1 
+\pard\sa200\sl276\slmult1\qc\ul\f0\fs24 Server Admin Command List:\par
+
+\pard\sa200\sl276\slmult1\ulnone sudo \b help\b0\par
+    \f1 this help\f0\par
+sudo \b admin \b0 [admin_password]\par
+    login to admin mode.\par
+sudo \b kick \b0 [user_name] [kick_reason]\par
+    kick specific user (reason is optional).\par
+sudo \b ban \b0 [user_name] [minutes] [opt. ban_reason]\par
+    ban specific player (0-minutes for permanent ban)\par
+sudo \b unban \b0 [user_name]\par
+    unban specific player.\par
+sudo \b warn \b0 [user_name]\par
+    warn specific player.\par
+sudo \b maxwarn \b0 [number_of_warnings]\par
+    set max number of warnings.\par
+sudo \b banlist\b0\par
+    view list of banned players.\par
+sudo \b userlist\b0\par
+    view list of connected players.\par
+sudo \b pass\b0\par
+    set password protection for server.\par
+sudo \b nopass\b0\par
+    remove password protection from the server\par
+sudo \b end_round\b0\par
+    end playing session.\par
+sudo \b friendlyfire \b0 [1/0]\par
+    enable friendly fire.\par
+sudo \b autoteambalance \b0 [1/0]\par
+    enable team auto-balance.\par
+sudo \b tklimit \b0 [number_of_kills]\par
+    change team kill tolerance level.\par
+sudo \b hostname \b0 [new_host_name]\par
+    change server name.\par
+sudo \b timelimit \b0 [minutes]\par
+    change session time.\par
+sudo \b say_all \b0 [message]\par
+    send admin message to all players.\par
+sudo \b say_player \b0 [user_name] [message]\par
+    send admin message to specific player.\par
+sudo \b map?\par
+\b0     view levels list.\par
+sudo \b map \b0 [mission_type] [level_name]\par
+    change map by level name.\par
+    \highlight1\b # Yoni note\highlight0\b0 : mission_type is string, from "sudo map?"\f1  like \b conquest\b0\f0\par
+sudo \b map# \b0 [mission_type] [level_number]\par
+    change map by level list index.\par
+sudo \b pause\b0\par
+    pause session.\par
+sudo \b unpause\b0\par
+    unpause session.\par
+}

@@ -24,6 +24,7 @@ var (
 	procSetWindowLongPtr     = user32.NewProc("SetWindowLongPtrW")
 	procSetWindowPos         = user32.NewProc("SetWindowPos")
 	procSetWindowRgn         = user32.NewProc("SetWindowRgn")
+	procCallWindowProc       = user32.NewProc("CallWindowProcW")
 	procGetDpiForWindow      = user32.NewProc("GetDpiForWindow") // Win10 1607+
 	procSystemParametersInfo = user32.NewProc("SystemParametersInfoW")
 	procCreateRectRgn        = gdi32.NewProc("CreateRectRgn")
@@ -37,7 +38,6 @@ var (
 const (
 	swMinimize      = 6
 	wmNCLButtonDown = 0xA1
-	htCaption       = 2
 	mbYesNo         = 0x4
 	mbIconError     = 0x10
 	idYes           = 6
@@ -54,33 +54,63 @@ func openURL(u string) {
 	_ = windows.ShellExecute(0, u16("open"), u16(u), nil, nil, windows.SW_SHOWNORMAL)
 }
 
-// makeFrameless drops the native title bar (the HTML draws its own XP one), sizes the
-// window for the monitor DPI, centers it and rounds the top corners like XP Luna.
-func makeFrameless(hwnd uintptr) {
-	dpi := uintptr(96)
+func windowDPI(hwnd uintptr) uintptr {
 	if procGetDpiForWindow.Find() == nil {
 		if d, _, _ := procGetDpiForWindow.Call(hwnd); d != 0 {
-			dpi = d
+			return d
 		}
 	}
+	return 96
+}
+
+var (
+	origWndProc uintptr
+	cornerR     uintptr
+)
+
+// makeFrameless drops the native title bar (the HTML draws its own XP one) but keeps a
+// resizable frame, sizes the window for the monitor DPI, centers it and rounds the top
+// corners like XP Luna.
+func makeFrameless(hwnd uintptr, dpi uintptr) {
 	w, h := winW*dpi/96, winH*dpi/96
+	cornerR = 16 * dpi / 96
 
 	const (
 		wsPopup, wsVisible, wsClipChildren = 0x80000000, 0x10000000, 0x02000000
 		wsSysMenu, wsMinimizeBox           = 0x00080000, 0x00020000
-		gwlStyle                           = -16
+		wsThickFrame                       = 0x00040000 // lets Windows resize it
+		gwlStyle, gwlpWndProc              = -16, -4
 	)
-	style := gwlStyle
-	procSetWindowLongPtr.Call(hwnd, uintptr(style), wsPopup|wsVisible|wsClipChildren|wsSysMenu|wsMinimizeBox)
+	style, wndProc := gwlStyle, gwlpWndProc
+	origWndProc, _, _ = procSetWindowLongPtr.Call(hwnd, uintptr(wndProc), windows.NewCallback(framelessProc))
+	procSetWindowLongPtr.Call(hwnd, uintptr(style), wsPopup|wsVisible|wsClipChildren|wsSysMenu|wsMinimizeBox|wsThickFrame)
 
 	var work struct{ L, T, R, B int32 }
 	procSystemParametersInfo.Call(0x30 /*SPI_GETWORKAREA*/, 0, uintptr(unsafe.Pointer(&work)), 0)
 	x := int(work.L) + max(0, int(work.R-work.L)-int(w))/2
 	y := int(work.T) + max(0, int(work.B-work.T)-int(h))/2
 	procSetWindowPos.Call(hwnd, 0, uintptr(x), uintptr(y), w, h, 0x4|0x20|0x40) // NOZORDER|FRAMECHANGED|SHOWWINDOW
+}
 
-	r := 16 * dpi / 96
-	rgn, _, _ := procCreateRoundRectRgn.Call(0, 0, w+1, h+1, r, r)
+// framelessProc sits in front of go-webview2's window procedure.
+func framelessProc(hwnd, msg, wp, lp uintptr) uintptr {
+	switch msg {
+	case 0x0083: // WM_NCCALCSIZE: no frame area, the page fills the whole window
+		if wp != 0 {
+			return 0
+		}
+	case 0x0005: // WM_SIZE: re-cut the rounded corners for the new size
+		setRoundedRegion(hwnd, lp&0xFFFF, (lp>>16)&0xFFFF)
+	}
+	r, _, _ := procCallWindowProc.Call(origWndProc, hwnd, msg, wp, lp)
+	return r
+}
+
+func setRoundedRegion(hwnd, w, h uintptr) {
+	if w == 0 || h == 0 {
+		return
+	}
+	rgn, _, _ := procCreateRoundRectRgn.Call(0, 0, w+1, h+1, cornerR, cornerR)
 	bottom, _, _ := procCreateRectRgn.Call(0, h/2, w, h)
 	procCombineRgn.Call(rgn, rgn, bottom, 2 /*RGN_OR*/)
 	procDeleteObject.Call(bottom)

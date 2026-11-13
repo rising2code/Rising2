@@ -1,0 +1,42 @@
+{\rtf1\ansi\ansicpg1252\deff0\nouicompat\deflang1033{\fonttbl{\f0\fnil Segoe UI;}{\f1\fnil\fcharset0 Segoe UI;}{\f2\fnil\fcharset0 Calibri;}{\f3\fnil\fcharset2 Symbol;}}
+{\colortbl ;\red255\green255\blue0;}
+{\*\generator Riched20 10.0.19041}\viewkind4\uc1 
+\pard\f0\fs24 the language is \b tcl\f1  \b0 (very minimal variation)\f0\par
+\par
+the path and folders are like linux? "\b /path/to/object\b0 "\par
+\par
+`\b sel\b0 ` is like cd\par
+so:\par
+`\b sel /sys/ \b0 ` and then `\b sel ..\b0 ` equals `\b sel /\b0 `\par
+\par
+\b dir \b0 gives objects in this path (not commands)\par
+\par
+\b psel \b0 gives current path\par
+\par
+`\b set x y\b0 ` is like `\b x=y\b0 `. to use other command output `\b set x [cmd]\b0 `\f1  like `\b set path [psel]\b0 `\f0\par
+\par
+`\b puts "\f1 a b c\f0 "\b0 ` prints \ul\f1 a b c\f0  \ulnone to console (therefore, to the .log file)\par
+`\b puts $var\b0 ` prints variable "var"\par
+\par
+\b global x\b0  -> access the global variable x. (for functions => proc)\par
+\par
+Some important places:\par
+\b /usr/level/entities\b0  -> see all objects in loaded level, while playing. Not good to change in runtime.. but good to verify.\par
+\par
+\b /sys/servers/gameserver/player\b0  -> player object, that has info about the main fps player (position, rotation etc)\par
+\par
+\b getcmds \b0 -> get available commands in this path/object. syntax is \par
+\highlight1\{return type\}_name_\{input type\}\highlight0 :\par
+
+\pard{\pntext\f3\'B7\tab}{\*\pn\pnlvlblt\pnf3\pnindent0{\pntxtb\'B7}}\fi-360\li720 f - float\par
+{\pntext\f3\'B7\tab}ffff - vector of 4 floats\par
+{\pntext\f3\'B7\tab}i - integer\par
+{\pntext\f3\'B7\tab}s - string\par
+{\pntext\f3\'B7\tab}v - void -> nothing\par
+
+\pard\par
+`\b source path.tcl\b0 ` will load path.tcl file. common places are `\b home:\b0 ` which is the install folder, \par
+so `\b source home:/x.tcl\b0 ` will load x.tcl from the install folder. I don't know if you can put raw\f1  \f0 windows paths like "C:\\Dir\\To\\File.tcl`\par
+
+\pard\sa200\sl276\slmult1\f2\lang9\par
+}

@@ -13,12 +13,41 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"time"
 )
 
-// Version is set at build time: -ldflags "-X main.Version=1.2.3".
-var Version = "dev"
+// Version is "v1.2.0 (ef7cbc3)" when built on a git tag, else the short commit
+// ("ef7cbc3", "+dirty" for uncommitted changes). Go stamps both into the exe.
+var Version = buildVersion()
+
+var pseudoVersion = regexp.MustCompile(`\d{14}-[0-9a-f]{12}`)
+
+func buildVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	var rev, dirty string
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value[:min(7, len(s.Value))]
+		case "vcs.modified":
+			if s.Value == "true" {
+				dirty = "+dirty"
+			}
+		}
+	}
+	if rev == "" {
+		return "dev"
+	}
+	if v := info.Main.Version; strings.HasPrefix(v, "v") && !pseudoVersion.MatchString(v) && dirty == "" {
+		return v + " (" + rev + ")"
+	}
+	return rev + dirty
+}
 
 // ---------- 1] Hosts redirect ----------
 
@@ -145,28 +174,19 @@ func ApplyHosts(req HostsRequest) (string, error) {
 // ---------- 2] Duplicate client ----------
 
 type DupRequest struct {
-	Exe     string `json:"exe"`
-	Count   int    `json:"count"`   // 1-99
-	Log     bool   `json:"log"`     // ".log"        -> ".lNN"
-	Storage bool   `json:"storage"` // "storage.dat" -> "storage.dNN"
+	Exe   string `json:"exe"`
+	Count int    `json:"count"` // 1-99
 }
 
-// PatchDup returns copy number i of the exe bytes. Both replacements keep the same
-// length, so offsets inside the exe do not move.
-func PatchDup(src []byte, i int, req DupRequest) ([]byte, error) {
+// PatchDup returns copy number i of the exe bytes. Both patches are required for two
+// clients to run side by side: ".log" -> ".lNN" and "storage.dat" -> "storage.dNN".
+// They keep the same length, so offsets inside the exe do not move.
+func PatchDup(src []byte, i int) ([]byte, error) {
 	out := bytes.Clone(src)
-	type patch struct{ from, to string }
-	var ps []patch
-	if req.Log {
-		ps = append(ps, patch{".log", fmt.Sprintf(".l%02d", i)})
-	}
-	if req.Storage {
-		ps = append(ps, patch{"storage.dat", fmt.Sprintf("storage.d%02d", i)})
-	}
-	if len(ps) == 0 {
-		return nil, errors.New("pick at least one thing to change")
-	}
-	for _, p := range ps {
+	for _, p := range []struct{ from, to string }{
+		{".log", fmt.Sprintf(".l%02d", i)},
+		{"storage.dat", fmt.Sprintf("storage.d%02d", i)},
+	} {
 		at := bytes.Index(src, []byte(p.from))
 		if at < 0 {
 			return nil, fmt.Errorf("%q not found in the exe - is this RisingEagle.exe?", p.from)
@@ -187,7 +207,7 @@ func CreateDups(req DupRequest) (string, error) {
 		return "", err
 	}
 	for i := 0; i < req.Count; i++ {
-		b, err := PatchDup(src, i, req)
+		b, err := PatchDup(src, i)
 		if err != nil {
 			return "", err
 		}

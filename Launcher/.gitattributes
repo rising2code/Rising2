@@ -1,0 +1,4 @@
+# LF everywhere, so the Docker build sees a clean tree (no false "+dirty" version).
+* text=auto eol=lf
+*.ico binary
+*.png binary

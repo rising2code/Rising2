@@ -6,7 +6,8 @@ It replaces [REExtraUtils](https://github.com/yonixw/REExtraUtils) and keeps all
 1. **Hosts / Redirect**: points the old GameSpy domains to this PC or to the fan server. Writes the same
    `# RisingEagle Game` marker as REExtraUtils, so redirects made by the old tool get cleaned up too.
 2. **Duplicate client**: copies `RisingEagle.exe` to `_DUPNN.exe` with its own `.lNN` / `storage.dNN`.
-3. **Undocumented info**: exe arguments, F11/server admin commands, Tcl console notes.
+3. **Undocumented info**: exe arguments, F11/server admin commands, Tcl console notes. The notes are the
+   original RTF files in `data/info/`: edit them in WordPad, and colors, bold and highlights show in the launcher.
 4. **Suggested links**: fetches `links.txt` from the latest REExtraUtils release, and falls back to a built-in copy.
 
 Windows 10/11 only (it uses the WebView2 runtime that ships with Windows).
@@ -32,10 +33,14 @@ shows a single UAC prompt, and the temp job files are deleted afterwards.
 Needs only Docker:
 
 ```bash
-docker build --build-arg VERSION=0.1.0 --output dist .
+docker build --output dist .
 ```
 
 This runs the tests and writes `dist/Rising2_Launcher.exe` (~7 MB, no installer, no runtime to ship).
+
+**Version:** Go has no version file (like `package.json`), so the version comes from git and Go stamps it
+into the exe: the short commit hash (`ef7cbc3`, plus `+dirty` if there were uncommitted changes), or
+`v0.2.0 (ef7cbc3)` when the commit has a tag (`git tag v0.2.0`).
 
 ## Working on the UI
 

@@ -17,6 +17,9 @@
       <span class="ver" id="ver"></span>
     </div>
     <div class="caption-btns">
+      <button class="cap txt" id="btnZoomOut" title="Smaller text (Ctrl -)" aria-label="Smaller text">A−</button>
+      <button class="cap txt" id="btnZoomIn" title="Bigger text (Ctrl +)" aria-label="Bigger text">A+</button>
+      <span class="cap-gap"></span>
       <button class="cap min" id="btnMin" title="Minimize" aria-label="Minimize"><i></i></button>
       <button class="cap close" id="btnClose" title="Close" aria-label="Close"><i></i></button>
     </div>
@@ -79,8 +82,10 @@
         <fieldset>
           <legend>Options</legend>
           <label>How many copies (1-99) <input type="number" id="dupCount" min="1" max="99" value="2"></label>
-          <label class="check"><input type="checkbox" id="dupLog" checked> Change <code>.log</code> to <code>.lNN</code></label>
-          <label class="check"><input type="checkbox" id="dupStorage" checked> Change <code>storage.dat</code> to <code>storage.dNN</code></label>
+          <label class="check fixed" title="Required, so the copies don't fight over the same files">
+            <input type="checkbox" checked disabled> Change <code>.log</code> to <code>.lNN</code> <span class="req">(always)</span></label>
+          <label class="check fixed" title="Required, so the copies don't fight over the same files">
+            <input type="checkbox" checked disabled> Change <code>storage.dat</code> to <code>storage.dNN</code> <span class="req">(always)</span></label>
         </fieldset>
 
         <div class="row">
@@ -90,20 +95,23 @@
 
       <section class="page" id="page-info">
         <h1>Undocumented info</h1>
-        <div class="tabs" role="tablist">
-          <button class="tab active" data-info="exe-args.txt">RisingEagle.exe args</button>
-          <button class="tab" data-info="admin-commands.txt">F11 / Server admin</button>
-          <button class="tab" data-info="tcl-basics.txt">Tcl console</button>
-          <button class="tab" data-info="tcl-example.tcl">Tcl example</button>
+        <div class="tabctl">
+          <div class="tabs" role="tablist">
+            <button class="tab active" data-info="exe-args.txt">RisingEagle.exe args</button>
+            <button class="tab" data-info="admin-commands.rtf">F11 / Server admin</button>
+            <button class="tab" data-info="tcl-basics.rtf">Tcl console</button>
+            <button class="tab" data-info="tcl-example.rtf">Tcl example</button>
+          </div>
+          <div class="tabpanel doc" id="infoText"></div>
         </div>
-        <pre class="sunken" id="infoText"></pre>
       </section>
 
       <section class="page" id="page-links">
         <h1>Suggested links</h1>
         <div class="row">
           <button class="btn" id="btnLinks">Refresh</button>
-          <span class="pill" id="linksState"></span>
+          <a class="pill" id="linksState" data-url="https://github.com/yonixw/REExtraUtils/releases/latest"
+             title="Open the GitHub release these links come from"></a>
         </div>
         <div class="sunken links" id="linksBox"></div>
       </section>

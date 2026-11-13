@@ -24,6 +24,7 @@ var assets embed.FS
 const (
 	appTitle      = "Rising2 Launcher"
 	winW, winH    = 760, 540 // in 96-DPI pixels
+	minW, minH    = 600, 420
 	webview2Page  = "https://developer.microsoft.com/microsoft-edge/webview2/"
 	createNoWindw = 0x08000000
 )
@@ -54,7 +55,9 @@ func main() {
 	defer w.Destroy()
 
 	hwnd := uintptr(w.Window())
-	makeFrameless(hwnd)
+	dpi := windowDPI(hwnd)
+	w.SetSize(int(minW*dpi/96), int(minH*dpi/96), webview2.HintMin) // before makeFrameless: it touches the style
+	makeFrameless(hwnd, dpi)
 	bindBridge(w, hwnd)
 	w.SetHtml(page())
 	w.Run()
@@ -97,20 +100,31 @@ func page() string {
 
 type handler func(args json.RawMessage) (any, error)
 
+// Hit-test codes the page may send with win.drag: caption (move) or an edge (resize).
+var dragCodes = map[string]uintptr{
+	"move": 2, "l": 10, "r": 11, "t": 12, "tl": 13, "tr": 14, "b": 15, "bl": 16, "br": 17,
+}
+
 func bindBridge(w webview2.WebView, hwnd uintptr) {
-	winOps := map[string]func(){
-		"win.minimize": func() { procShowWindow.Call(hwnd, swMinimize) },
-		"win.close":    func() { w.Terminate() },
-		"win.drag": func() {
-			procReleaseCapture.Call()
-			procPostMessage.Call(hwnd, wmNCLButtonDown, htCaption, 0)
+	// The page covers the whole window, so it tells us when the mouse goes down on the
+	// title bar or an edge, and Windows takes over the move/resize from there.
+	winOps := map[string]func(json.RawMessage){
+		"win.minimize": func(json.RawMessage) { procShowWindow.Call(hwnd, swMinimize) },
+		"win.close":    func(json.RawMessage) { w.Terminate() },
+		"win.drag": func(args json.RawMessage) {
+			var where string
+			_ = json.Unmarshal(args, &where)
+			if code, ok := dragCodes[where]; ok {
+				procReleaseCapture.Call()
+				procPostMessage.Call(hwnd, wmNCLButtonDown, code, 0)
+			}
 		},
 	}
 	h := handlers(w, hwnd)
 
 	w.Bind("__rpc", func(id int, method string, args json.RawMessage) {
 		if op, ok := winOps[method]; ok {
-			op()
+			op(args)
 			return
 		}
 		go func() {
@@ -177,6 +191,7 @@ func handlers(w webview2.WebView, hwnd uintptr) map[string]handler {
 			if err := json.Unmarshal(args, &req); err != nil {
 				return nil, err
 			}
+			req.Exe = strings.Trim(strings.TrimSpace(req.Exe), `"`)
 			return privileged("dup", req, func() (string, error) { return CreateDups(req) })
 		},
 

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rising2 Launcher</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="window">
+
+  <header class="titlebar" id="titlebar">
+    <canvas id="matrix" aria-hidden="true"></canvas>
+    <div class="title">
+      <span class="logo" aria-hidden="true">🦅</span>
+      <span>Rising2 Launcher</span>
+      <span class="ver" id="ver"></span>
+    </div>
+    <div class="caption-btns">
+      <button class="cap min" id="btnMin" title="Minimize" aria-label="Minimize"><i></i></button>
+      <button class="cap close" id="btnClose" title="Close" aria-label="Close"><i></i></button>
+    </div>
+  </header>
+
+  <div class="body">
+    <nav class="taskpane">
+      <div class="pane-group">
+        <div class="pane-head">Tools</div>
+        <button class="nav active" data-page="hosts"><b>1</b> Hosts / Redirect</button>
+        <button class="nav" data-page="dup"><b>2</b> Duplicate Client</button>
+      </div>
+      <div class="pane-group">
+        <div class="pane-head">Knowledge</div>
+        <button class="nav" data-page="info"><b>3</b> Undocumented Info</button>
+        <button class="nav" data-page="links"><b>4</b> Suggested Links</button>
+      </div>
+      <div class="pane-foot" id="who"></div>
+    </nav>
+
+    <main class="pages">
+
+      <section class="page active" id="page-hosts">
+        <h1>Redirect GameSpy to the fan server</h1>
+        <p class="hint">Points the old GameSpy domains to a server of your choice by editing
+          <code id="hostsPath">hosts</code>. Windows will ask for admin permission when needed.</p>
+
+        <fieldset>
+          <legend>Point the domains to</legend>
+          <label class="radio"><input type="radio" name="ipmode" value="local" checked> This PC (127.0.0.1)</label>
+          <label class="radio"><input type="radio" name="ipmode" value="custom"> Fan server IP:
+            <input type="text" id="customIP" placeholder="e.g. 203.0.113.7" spellcheck="false"></label>
+        </fieldset>
+
+        <fieldset class="grow">
+          <legend>Domains <a href="#" id="resetDomains" class="small">reset to default</a></legend>
+          <textarea id="domains" spellcheck="false"></textarea>
+        </fieldset>
+
+        <div class="row">
+          <button class="btn primary" id="btnHostsApply">Apply redirect!</button>
+          <button class="btn" id="btnHostsRemove">Remove redirect</button>
+          <span class="pill" id="hostsState">checking…</span>
+        </div>
+      </section>
+
+      <section class="page" id="page-dup">
+        <h1>Duplicate client</h1>
+        <p class="hint">Makes copies of RisingEagle.exe that can run side by side on this PC
+          (for multiplayer testing). Each copy writes its own <code>.lNN</code> log and <code>storage.dNN</code>.</p>
+
+        <fieldset>
+          <legend>RisingEagle.exe path</legend>
+          <div class="row tight">
+            <input type="text" id="dupExe" placeholder="C:\Games\Rising Eagle\RisingEagle.exe" spellcheck="false">
+            <button class="btn" id="btnPick">Browse…</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Options</legend>
+          <label>How many copies (1-99) <input type="number" id="dupCount" min="1" max="99" value="2"></label>
+          <label class="check"><input type="checkbox" id="dupLog" checked> Change <code>.log</code> to <code>.lNN</code></label>
+          <label class="check"><input type="checkbox" id="dupStorage" checked> Change <code>storage.dat</code> to <code>storage.dNN</code></label>
+        </fieldset>
+
+        <div class="row">
+          <button class="btn primary" id="btnDup">Create duplicates!</button>
+        </div>
+      </section>
+
+      <section class="page" id="page-info">
+        <h1>Undocumented info</h1>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-info="exe-args.txt">RisingEagle.exe args</button>
+          <button class="tab" data-info="admin-commands.txt">F11 / Server admin</button>
+          <button class="tab" data-info="tcl-basics.txt">Tcl console</button>
+          <button class="tab" data-info="tcl-example.tcl">Tcl example</button>
+        </div>
+        <pre class="sunken" id="infoText"></pre>
+      </section>
+
+      <section class="page" id="page-links">
+        <h1>Suggested links</h1>
+        <div class="row">
+          <button class="btn" id="btnLinks">Refresh</button>
+          <span class="pill" id="linksState"></span>
+        </div>
+        <div class="sunken links" id="linksBox"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="console" id="console" aria-live="polite"></footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

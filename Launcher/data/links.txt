@@ -1,0 +1,108 @@
+# Last update 18/09/25 18:09 IST
+
+# YT Guides (Hebrew)
+
+https://www.youtube.com/playlist?list=PLAMd2RJQu7X-UxmUwPBkbEpDQX8tHDw4F
+
+https://www.youtube.com/watch?v=_mJQ_b_gELc&list=PLAMd2RJQu7X-UxmUwPBkbEpDQX8tHDw4F&index=1
+
+# Latest Patch Downloads
+
+https://mega.nz/file/topQBJ4S#EE8inJ_KCPprhzZrfzPd6JIyB9VZq1Uurjo27FCB4M8
+https://app.mediafire.com/folder/2hphvydh5jmy4
+
+# Githubs
+
+https://github.com/yonixw/REExtraUtils
+https://github.com/yonixw/Zenchreal_rising-eagle-master
+https://github.com/yonixw/Zenchreal_rising-eagle-soap/tree/master
+
+# Discords
+
+https://discord.com/invite/KGCnwX6 [Old]
+https://discord.com/app/invite-with-guild-onboarding/wJR5GJ8 [Old]
+
+https://discord.com/invite/nXUDH7b [Newer]
+
+https://discord.com/invite/sMaWdbt [OpenSpy]
+
+# Others
+
+## Old downloads
+
+https://www.gamefront.com/games/rising-eagle-futuristic-infantry-warfare
+https://www.malavida.com/en/soft/rising-eagle/
+
+## Engine info
+
+data\support\*.pdf 
+
+data\meshes\buildings\france\
+    znmeshtool.exe
+    x1.bat
+    *.exe
+
+help files
+    https://web.archive.org/web/20060204150134/http://www.nebuladevice.org/
+    https://sourceforge.net/projects/nebuladevice/
+    https://en.wikipedia.org/wiki/Bigpoint
+    https://github.com/n-engine/nebuladevice
+
+https://wiki.tcl-lang.org/page/Nebula+Device
+    https://sourceforge.net/projects/nebuladevice/files/Nebula2%20Documentation/June%202005/
+        https://products.groupdocs.app/viewer/chm
+
+
+https://github.com/nitrocaster/GameSpy
+
+https://archive.is/wip/yiyW1
+
+
+## Dockers
+
+docker pull yonixw/re-fakespy-soap:latest
+    https://hub.docker.com/r/yonixw/re-fakespy-soap/tags
+docker pull yonixw/re-fakespy-masterserver:latest
+    https://hub.docker.com/r/yonixw/re-fakespy-masterserver/tags
+docker pull 
+    https://hub.docker.com/r/yonixw/mangaprinter/tags
+
+
+## History
+
+https://youtu.be/YGvZmEu8gMc?t=8890
+
+https://he.wikipedia.org/wiki/Rising_Eagle:_Futuristic_Infantry_Warfare
+
+https://www.moddb.com/games/rising-eagle/images
+
+https://www.fxp.co.il/showthread.php?t=2343066
+
+https://vgames.co.il/article/1317.html (https://archive.is/9II30)
+
+https://www.allmarketing.co.il/%D7%90%D7%9C%D7%99%D7%A4%D7%95%D7%AA-%D7%99%D7%A9%D7%A8%D7%90%D7%9C-%D7%91%D7%9E%D7%A9%D7%97%D7%A7%D7%99-%D7%9E%D7%97%D7%A9%D7%91-%D7%9C%D7%A9%D7%A0%D7%AA-2008-%D7%99%D7%95%D7%A6%D7%90%D7%AA-%D7%9C/
+
+https://vgames.co.il/article/3583.html
+
+https://web.archive.org/web/20090311163604/http://forum.vgames.co.il/forumdisplay.php?f=215
+
+https://www.ynet.co.il/article/3661963
+
+https://web.archive.org/web/20130306050610/http://gamex.co.il/community/viewtopic.php/f,97/t,1114
+
+https://www.facebook.com/RisingEalge/?locale=he_IL
+
+https://www.youtube.com/@RisingEagleChannel/videos
+
+https://web.archive.org/web/20080731004027/http://www.rising-eagle.com/
+
+https://web.archive.org/web/20081203025817/http://www.rising-eagle.com/files/Rising_Eagle_Keymap_Hebrew.pdf
+
+https://www.youtube.com/watch?v=TnqZlAAP-e8
+
+https://www.fxp.co.il/showthread.php?t=18720702
+https://www.fxp.co.il/showthread.php?t=18945876&highlight=Rising+Eagle
+https://www.fxp.co.il/showthread.php?t=19268613
+https://www.fxp.co.il/showthread.php?t=16486840&highlight=Rising+Eagle
+
+

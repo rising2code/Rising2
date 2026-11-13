@@ -1,0 +1,34 @@
+the language is tcl (very minimal variation)
+
+the path and folders are like linux? "/path/to/object"
+
+`sel` is like cd
+so:
+`sel /sys/ ` and then `sel ..` equals `sel /`
+
+dir gives objects in this path (not commands)
+
+psel gives current path
+
+`set x y` is like `x=y`. to use other command output `set x [cmd]` like `set path [psel]`
+
+`puts "a b c"` prints a b c to console (therefore, to the .log file)
+`puts $var` prints variable "var"
+
+global x -> access the global variable x. (for functions => proc)
+
+Some important places:
+/usr/level/entities -> see all objects in loaded level, while playing. Not good to change in runtime.. but good to verify.
+
+/sys/servers/gameserver/player -> player object, that has info about the main fps player (position, rotation etc)
+
+getcmds -> get available commands in this path/object. syntax is 
+{return type}_name_{input type}:
+f - float
+ffff - vector of 4 floats
+i - integer
+s - string
+v - void -> nothing
+
+`source path.tcl` will load path.tcl file. common places are `home:` which is the install folder, 
+so `source home:/x.tcl` will load x.tcl from the install folder. I don't know if you can put raw windows paths like "C:\Dir\To\File.tcl`

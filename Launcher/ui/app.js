@@ -152,7 +152,8 @@ $("#btnMin").onclick = () => call("win.minimize");
 $("#btnClose").onclick = () => call("win.close");
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 
-// Text size: CSS zoom re-flows the layout (unlike transform: scale). Title bar stays put.
+// Text size: CSS zoom re-flows the layout (unlike transform: scale). Applies to the app,
+// console and taskbar; the title bar stays put.
 const ZOOMS = [0.8, 0.9, 1, 1.1, 1.25, 1.4, 1.6];
 let zoomIdx = ZOOMS.indexOf(parseFloat(store.get("zoom", "1")));
 if (zoomIdx < 0) zoomIdx = ZOOMS.indexOf(1);

@@ -15,7 +15,7 @@ html[data-edge=l] *, html[data-edge=r] * { cursor: ew-resize !important; }
 html[data-edge=t] *, html[data-edge=b] * { cursor: ns-resize !important; }
 html[data-edge=tl] *, html[data-edge=br] * { cursor: nwse-resize !important; }
 html[data-edge=tr] *, html[data-edge=bl] * { cursor: nesw-resize !important; }
-.body, .console { zoom: var(--zoom, 1); }
+.body, .console, .taskbar { zoom: var(--zoom, 1); }
 html[lang=he] h1, html[lang=he] .title, html[lang=he] .links h2 { font-family: Tahoma, sans-serif; }
 /* LTR islands inside Hebrew text: paths, IPs, file names. */
 code { direction: ltr; unicode-bidi: isolate; }

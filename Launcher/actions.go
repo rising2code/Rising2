@@ -49,6 +49,36 @@ func buildVersion() string {
 	return rev + dirty
 }
 
+// Msg is a user-facing message. The UI translates Code (ui/i18n.js) and fills in Args,
+// so no English sentence is hard-coded here. It doubles as an error.
+type Msg struct {
+	Code string         `json:"code"`
+	Args map[string]any `json:"args,omitempty"`
+}
+
+// M builds a Msg from key/value pairs: M("dup.done", "n", 3).
+func M(code string, kv ...any) Msg {
+	m := Msg{Code: code}
+	if len(kv) > 0 {
+		m.Args = map[string]any{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			m.Args[kv[i].(string)] = kv[i+1]
+		}
+	}
+	return m
+}
+
+func (m Msg) Error() string { return fmt.Sprintf("%s %v", m.Code, m.Args) }
+
+// AsMsg turns any error into a Msg; non-Msg errors (OS, network) travel as a detail.
+func AsMsg(err error) Msg {
+	var m Msg
+	if errors.As(err, &m) {
+		return m
+	}
+	return M("err.system", "detail", err.Error())
+}
+
 // ---------- 1] Hosts redirect ----------
 
 // hostsMarker tags every line we own. Same marker as REExtraUtils v1,
@@ -79,7 +109,7 @@ func CleanDomains(in []string) ([]string, error) {
 			continue
 		}
 		if !domainRe.MatchString(d) {
-			return nil, fmt.Errorf("not a valid domain: %q", d)
+			return nil, M("err.domain", "domain", d)
 		}
 		seen[d] = true
 		out = append(out, d)
@@ -111,10 +141,10 @@ func PatchHosts(content string, req HostsRequest) (string, error) {
 	}
 	if req.IP != "" {
 		if net.ParseIP(req.IP) == nil {
-			return "", fmt.Errorf("IP is not valid: %q", req.IP)
+			return "", M("err.ip", "ip", req.IP)
 		}
 		if len(domains) == 0 {
-			return "", errors.New("domain list is empty")
+			return "", M("err.noDomains")
 		}
 	}
 	set := map[string]bool{}
@@ -152,23 +182,23 @@ func OurHostsLines(content string) []string {
 	return out
 }
 
-func ApplyHosts(req HostsRequest) (string, error) {
+func ApplyHosts(req HostsRequest) (Msg, error) {
 	b, err := os.ReadFile(req.Path)
 	if err != nil {
-		return "", err
+		return Msg{}, err
 	}
 	out, err := PatchHosts(string(b), req)
 	if err != nil {
-		return "", err
+		return Msg{}, err
 	}
 	// Write in place (not rename) so the file keeps its permissions.
 	if err := os.WriteFile(req.Path, []byte(out), 0o644); err != nil {
-		return "", err
+		return Msg{}, err
 	}
 	if req.IP == "" {
-		return "Removed all Rising Eagle redirects.", nil
+		return M("hosts.removed"), nil
 	}
-	return fmt.Sprintf("Redirected %d domains to %s.", len(req.Domains), req.IP), nil
+	return M("hosts.applied", "n", len(req.Domains), "ip", req.IP), nil
 }
 
 // ---------- 2] Duplicate client ----------
@@ -189,7 +219,7 @@ func PatchDup(src []byte, i int) ([]byte, error) {
 	} {
 		at := bytes.Index(src, []byte(p.from))
 		if at < 0 {
-			return nil, fmt.Errorf("%q not found in the exe - is this RisingEagle.exe?", p.from)
+			return nil, M("err.notGameExe", "text", p.from)
 		}
 		copy(out[at:], p.to)
 	}
@@ -198,25 +228,25 @@ func PatchDup(src []byte, i int) ([]byte, error) {
 
 func DupName(exe string, i int) string { return fmt.Sprintf("%s_DUP%02d.exe", exe, i) }
 
-func CreateDups(req DupRequest) (string, error) {
+func CreateDups(req DupRequest) (Msg, error) {
 	if req.Count < 1 || req.Count > 99 {
-		return "", errors.New("count must be 1-99")
+		return Msg{}, M("err.count")
 	}
 	src, err := os.ReadFile(req.Exe)
 	if err != nil {
-		return "", err
+		return Msg{}, err
 	}
 	for i := 0; i < req.Count; i++ {
 		b, err := PatchDup(src, i)
 		if err != nil {
-			return "", err
+			return Msg{}, err
 		}
 		if err := os.WriteFile(DupName(req.Exe, i), b, 0o755); err != nil {
-			return "", err
+			return Msg{}, err
 		}
 	}
-	return fmt.Sprintf("Created %d copies next to %s (…_DUP00.exe - _DUP%02d.exe).",
-		req.Count, filepath.Base(req.Exe), req.Count-1), nil
+	return M("dup.done", "n", req.Count, "exe", filepath.Base(req.Exe),
+		"last", fmt.Sprintf("_DUP%02d.exe", req.Count-1)), nil
 }
 
 // ---------- 4] Links ----------

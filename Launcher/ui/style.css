@@ -16,6 +16,9 @@ html[data-edge=t] *, html[data-edge=b] * { cursor: ns-resize !important; }
 html[data-edge=tl] *, html[data-edge=br] * { cursor: nwse-resize !important; }
 html[data-edge=tr] *, html[data-edge=bl] * { cursor: nesw-resize !important; }
 .body, .console { zoom: var(--zoom, 1); }
+html[lang=he] h1, html[lang=he] .title, html[lang=he] .links h2 { font-family: Tahoma, sans-serif; }
+/* LTR islands inside Hebrew text: paths, IPs, file names. */
+code { direction: ltr; unicode-bidi: isolate; }
 code { font-family: Consolas, "Lucida Console", monospace; background: #fff8; padding: 0 3px; border-radius: 2px; }
 
 .window { height: 100%; display: flex; flex-direction: column; background: var(--face);
@@ -28,11 +31,13 @@ code { font-family: Consolas, "Lucida Console", monospace; background: #fff8; pa
 #matrix { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .55; pointer-events: none;
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 45%, #000 80%, transparent 100%);
           mask-image: linear-gradient(90deg, transparent 0, #000 45%, #000 80%, transparent 100%); }
-.title { position: relative; display: flex; align-items: center; gap: 6px; padding-left: 8px; flex: 1;
+[dir=rtl] #matrix { -webkit-mask-image: linear-gradient(270deg, transparent 0, #000 45%, #000 80%, transparent 100%);
+                            mask-image: linear-gradient(270deg, transparent 0, #000 45%, #000 80%, transparent 100%); }
+.title { position: relative; display: flex; align-items: center; gap: 6px; padding-inline-start: 8px; flex: 1;
   font: bold 13px "Trebuchet MS", Tahoma, sans-serif; color: #fff; text-shadow: 1px 1px #0a1f64; pointer-events: none; }
 .logo { font-size: 15px; filter: drop-shadow(0 0 2px #fff8); }
 .ver { font-weight: normal; font-size: 11px; opacity: .8; }
-.caption-btns { position: relative; display: flex; gap: 2px; padding-right: 5px; }
+.caption-btns { position: relative; display: flex; gap: 2px; padding-inline-end: 5px; }
 .cap { width: 21px; height: 21px; border: 1px solid #fff; border-radius: 3px; position: relative; cursor: pointer;
   background: radial-gradient(circle at 30% 25%, #6ea6ff, #2865e0 70%); box-shadow: inset -1px -1px 2px #0003;
   transition: filter .15s, transform .1s; }
@@ -53,22 +58,24 @@ code { font-family: Consolas, "Lucida Console", monospace; background: #fff8; pa
   background: linear-gradient(180deg, var(--pane-1), var(--pane-2)); }
 .pane-group { background: var(--pane-card); border-radius: 4px 4px 0 0; overflow: hidden; box-shadow: 0 1px 2px #0003; }
 .pane-head { padding: 5px 9px; font-weight: bold; color: #fff;
-  background: linear-gradient(90deg, #fff 0%, #c6d3f7 100%); color: var(--pane-head); }
+  background: linear-gradient(to right, #fff 0%, #c6d3f7 100%); color: var(--pane-head); }
+[dir=rtl] .pane-head { background: linear-gradient(to left, #fff 0%, #c6d3f7 100%); }
 .nav { display: flex; align-items: center; gap: 7px; width: 100%; padding: 6px 9px; border: 0; background: none;
-  font: inherit; color: var(--pane-head); text-align: left; cursor: pointer; position: relative; overflow: hidden;
-  transition: background .2s, padding-left .25s var(--ease); }
+  font: inherit; color: var(--pane-head); text-align: start; cursor: pointer; position: relative; overflow: hidden;
+  transition: background .2s, padding .25s var(--ease); }
 .nav b { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
   background: var(--pane-head); color: #fff; font-size: 10px; }
 .nav:hover { background: #fff7; text-decoration: underline; }
-.nav.active { background: #fff; padding-left: 14px; font-weight: bold; }
-.nav.active::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+.nav.active { background: #fff; padding-inline-start: 14px; font-weight: bold; }
+.nav.active::before { content: ""; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 4px;
   background: linear-gradient(var(--matrix), #0a7f2e); animation: grow .35s var(--ease); }
 @keyframes grow { from { transform: scaleY(0); } }
 .pane-foot { margin-top: auto; color: #fff; font-size: 11px; text-shadow: 1px 1px #0004; line-height: 1.5; }
 
 .pages { flex: 1; position: relative; min-width: 0; }
 .page { position: absolute; inset: 0; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
-  opacity: 0; transform: translateX(14px); pointer-events: none; transition: opacity .25s, transform .35s var(--ease); }
+  opacity: 0; transform: translateX(var(--slide, 14px)); pointer-events: none; transition: opacity .25s, transform .35s var(--ease); }
+[dir=rtl] .page { --slide: -14px; }
 .page.active { opacity: 1; transform: none; pointer-events: auto; }
 h1 { margin: 0; font: bold 16px "Trebuchet MS", Tahoma, sans-serif; color: #0a246a; }
 .hint { margin: -4px 0 0; color: #333; line-height: 1.45; }
@@ -76,7 +83,7 @@ h1 { margin: 0; font: bold 16px "Trebuchet MS", Tahoma, sans-serif; color: #0a24
 fieldset { margin: 0; border: 1px solid #d0d0bf; border-radius: 4px; padding: 6px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
 fieldset.grow { flex: 1; min-height: 0; }
 legend { color: #0046d5; padding: 0 4px; }
-.small { font-size: 11px; margin-left: 6px; color: #0046d5; }
+.small { font-size: 11px; margin-inline-start: 6px; color: #0046d5; }
 label { display: flex; align-items: center; gap: 6px; }
 
 input[type=text], input[type=number], textarea {
@@ -124,12 +131,12 @@ a.pill:hover { text-decoration: underline; }
 /* ---------- Info / links ---------- */
 /* XP tab control: the selected tab is joined to the panel (it covers the panel's top border). */
 .tabctl { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.tabs { display: flex; align-items: flex-end; padding-left: 2px; position: relative; z-index: 1; }
-.tab { font: inherit; padding: 3px 10px; margin-right: -1px; border: 1px solid #919b9c; border-bottom: 0;
+.tabs { display: flex; align-items: flex-end; padding-inline-start: 2px; position: relative; z-index: 1; }
+.tab { font: inherit; padding: 3px 10px; margin-inline-end: -1px; border: 1px solid #919b9c; border-bottom: 0;
   border-radius: 3px 3px 0 0; cursor: pointer; position: relative; overflow: hidden;
   background: linear-gradient(#fff, #ecebe5); transition: padding .2s var(--ease), background .2s; }
 .tab:hover { box-shadow: inset 0 2px 0 #f8b636; }
-.tab.active { z-index: 2; padding: 5px 12px 4px; margin: 0 1px -1px -1px; background: var(--panel);
+.tab.active { z-index: 2; padding: 5px 12px 4px; margin-block: 0 -1px; margin-inline: -1px 1px; background: var(--panel);
   border-bottom: 1px solid var(--panel); box-shadow: inset 0 3px 0 #f8b636; }
 .tabpanel { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; background: var(--panel);
   border: 1px solid #919b9c; box-shadow: 1px 1px 0 #d6d3ce; }
@@ -149,7 +156,7 @@ a.pill:hover { text-decoration: underline; }
 .console { flex: none; height: 74px; overflow: hidden; padding: 5px 10px; background: #050b05; color: var(--matrix);
   font: 11px/1.45 Consolas, "Lucida Console", monospace; border-top: 2px solid #0a246a;
   display: flex; flex-direction: column; justify-content: flex-end; text-shadow: 0 0 4px #3cff6b88; }
-.console div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.console div { unicode-bidi: plaintext; text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .console .err { color: #ff6b6b; text-shadow: 0 0 4px #ff6b6b88; }
 .console .warn { color: #ffd43b; text-shadow: 0 0 4px #ffd43b88; }
 .console .cursor::after { content: "█"; animation: blink 1s steps(1) infinite; }
@@ -162,12 +169,10 @@ a.pill:hover { text-decoration: underline; }
 
 /* ---------- Desktop + XP taskbar ---------- */
 .desk { flex: 1; min-height: 0; position: relative; display: flex; }
-.desktop { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden;
-  background: radial-gradient(ellipse at 30% 110%, #3b8d2c 0 30%, transparent 31%),
-              linear-gradient(180deg, #2f6fd8 0%, #6aa5f0 55%, #9cc8f7 70%, #4c9b31 71%, #2f7a20 100%); }
-.desktop span { font: italic bold 44px "Trebuchet MS", sans-serif; color: #fff3; text-shadow: 0 2px 6px #0003; }
+.desktop { position: absolute; inset: 0; background: #3a6ea5 url("bg.webp") center / cover no-repeat; }
 .app { position: relative; flex: 1; background: var(--face);
-  transform-origin: 60px calc(100% + 110px); transition: transform .32s var(--ease), opacity .28s; }
+  transform-origin: var(--task-x, 60px) calc(100% + 110px); transition: transform .32s var(--ease), opacity .28s; }
+[dir=rtl] .app { --task-x: calc(100% - 60px); }
 .app.minimized { transform: scale(.08); opacity: 0; pointer-events: none; }
 
 .taskbar { flex: none; height: 30px; display: flex; align-items: stretch; user-select: none;
@@ -175,15 +180,21 @@ a.pill:hover { text-decoration: underline; }
   border-top: 1px solid #0c3daa; }
 .tasks { flex: 1; display: flex; align-items: center; gap: 3px; padding: 0 6px; min-width: 0; }
 .task { display: flex; align-items: center; gap: 6px; width: 160px; height: 22px; padding: 0 8px; cursor: pointer;
-  border: 1px solid #1c4cc7; border-radius: 3px; color: #fff; font: 11px Tahoma, sans-serif; text-align: left;
+  border: 1px solid #1c4cc7; border-radius: 3px; color: #fff; font: 11px Tahoma, sans-serif; text-align: start;
   background: linear-gradient(180deg, #4f8ff0, #3a7ae8 45%, #2e6be0); box-shadow: inset 1px 1px 0 #7eb2ff;
   position: relative; overflow: hidden; transition: background .2s, box-shadow .2s; }
 .task:hover { background: linear-gradient(180deg, #6aa3f7, #4c89ee 45%, #3b78e6); }
 .task.active { background: linear-gradient(180deg, #1c4bb8, #1e52c4); box-shadow: inset 1px 1px 2px #0b2a75; font-weight: bold; }
 .task-ico { font-size: 13px; }
-.tray { display: flex; align-items: center; gap: 8px; padding: 0 10px 0 12px; color: #fff;
+.tray { display: flex; align-items: center; gap: 8px; padding-inline: 12px 10px; color: #fff;
   background: linear-gradient(180deg, #0c59b9 0%, #139ee9 6%, #18b9f0 12%, #1490e6 90%, #0b5fc2 100%);
-  border-left: 1px solid #0a3e94; box-shadow: inset 1px 0 0 #1ab4f3; }
+  border-inline-start: 1px solid #0a3e94; box-shadow: inset 1px 0 0 #1ab4f3; }
+[dir=rtl] .tray { box-shadow: inset -1px 0 0 #1ab4f3; }
+/* XP language bar: blue square with the language code. */
+.langbar { font: bold 10px Tahoma, sans-serif; color: #fff; padding: 1px 4px; border-radius: 2px; cursor: pointer;
+  background: #0b3fa8; border: 1px solid #5fa8ff; box-shadow: inset 0 0 0 1px #0a2f80; transition: filter .15s, transform .1s; }
+.langbar:hover { filter: brightness(1.25); }
+.langbar:active { transform: scale(.92); }
 .tray-net { display: grid; cursor: default; }
 .tray-net svg .pc rect { fill: #d7e4f5; stroke: #1b3c73; stroke-width: .6; }
 .tray-net svg .pc .scr { fill: #2b5ea8; stroke: none; transition: fill .15s; }

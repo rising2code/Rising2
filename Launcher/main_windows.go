@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -88,7 +89,10 @@ func page() string {
 	read := func(p string) string { b, _ := assets.ReadFile(p); return string(b) }
 	html := read("ui/index.html")
 	html = strings.Replace(html, `<link rel="stylesheet" href="style.css">`, "<style>"+read("ui/style.css")+"</style>", 1)
+	html = strings.Replace(html, `<script src="i18n.js"></script>`, "<script>"+read("ui/i18n.js")+"</script>", 1)
 	html = strings.Replace(html, `<script src="app.js"></script>`, "<script>"+read("ui/app.js")+"</script>", 1)
+	bg := base64.StdEncoding.EncodeToString([]byte(read("ui/bg.webp")))
+	html = strings.Replace(html, `url("bg.webp")`, `url("data:image/webp;base64,`+bg+`")`, 1)
 	return html
 }
 
@@ -133,11 +137,11 @@ func bindBridge(w webview2.WebView, hwnd uintptr) {
 			if f, ok := h[method]; ok {
 				res, err = f(args)
 			} else {
-				err = fmt.Errorf("unknown method %q", method)
+				err = M("err.system", "detail", "unknown method "+method)
 			}
 			payload := map[string]any{"ok": err == nil, "value": res}
 			if err != nil {
-				payload["value"] = err.Error()
+				payload["value"] = AsMsg(err)
 			}
 			b, _ := json.Marshal(payload)
 			w.Dispatch(func() { w.Eval(fmt.Sprintf("window.__rpcDone(%d,%s)", id, b)) })
@@ -179,7 +183,7 @@ func handlers(w webview2.WebView, hwnd uintptr) map[string]handler {
 				return nil, err
 			}
 			req.Path = hostsPath
-			msg, err := privileged("hosts", req, func() (string, error) { return ApplyHosts(req) })
+			msg, err := privileged("hosts", req, func() (Msg, error) { return ApplyHosts(req) })
 			if err == nil {
 				flushDNS()
 			}
@@ -192,7 +196,7 @@ func handlers(w webview2.WebView, hwnd uintptr) map[string]handler {
 				return nil, err
 			}
 			req.Exe = strings.Trim(strings.TrimSpace(req.Exe), `"`)
-			return privileged("dup", req, func() (string, error) { return CreateDups(req) })
+			return privileged("dup", req, func() (Msg, error) { return CreateDups(req) })
 		},
 
 		"dup.pick": func(args json.RawMessage) (any, error) {
@@ -216,7 +220,7 @@ func handlers(w webview2.WebView, hwnd uintptr) map[string]handler {
 			var u string
 			_ = json.Unmarshal(args, &u)
 			if !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
-				return nil, errors.New("only web links can be opened")
+				return nil, M("err.system", "detail", "only web links can be opened")
 			}
 			openURL(u)
 			return nil, nil
@@ -238,11 +242,11 @@ func flushDNS() {
 type elevatedJob struct {
 	Kind  string          `json:"kind"`
 	Req   json.RawMessage `json:"req"`
-	Msg   string          `json:"msg,omitempty"`
-	Error string          `json:"error,omitempty"`
+	Msg   *Msg            `json:"msg,omitempty"`
+	Error *Msg            `json:"error,omitempty"`
 }
 
-func privileged(kind string, req any, direct func() (string, error)) (string, error) {
+func privileged(kind string, req any, direct func() (Msg, error)) (Msg, error) {
 	msg, err := direct()
 	if err == nil || !errors.Is(err, fs.ErrPermission) || windows.GetCurrentProcessToken().IsElevated() {
 		return msg, err
@@ -252,7 +256,7 @@ func privileged(kind string, req any, direct func() (string, error)) (string, er
 	job, _ := json.Marshal(elevatedJob{Kind: kind, Req: raw})
 	f, err := os.CreateTemp("", "rising2-job-*.json")
 	if err != nil {
-		return "", err
+		return Msg{}, err
 	}
 	jobPath := f.Name()
 	defer os.Remove(jobPath)
@@ -263,20 +267,20 @@ func privileged(kind string, req any, direct func() (string, error)) (string, er
 	exe, _ := os.Executable()
 	code, err := runAsAdmin(exe, `--elevated "`+jobPath+`"`)
 	if errors.Is(err, windows.ERROR_CANCELLED) {
-		return "", errors.New("admin permission was declined, nothing changed")
+		return Msg{}, M("err.uacDeclined")
 	}
 	if err != nil {
-		return "", err
+		return Msg{}, err
 	}
 	var out elevatedJob
 	b, rerr := os.ReadFile(jobPath + ".out")
-	if rerr != nil || json.Unmarshal(b, &out) != nil {
-		return "", fmt.Errorf("admin helper failed (exit code %d)", code)
+	if rerr != nil || json.Unmarshal(b, &out) != nil || (out.Msg == nil && out.Error == nil) {
+		return Msg{}, M("err.helper", "code", code)
 	}
-	if out.Error != "" {
-		return "", errors.New(out.Error)
+	if out.Error != nil {
+		return Msg{}, *out.Error
 	}
-	return out.Msg, nil
+	return *out.Msg, nil
 }
 
 func elevatedChild(jobPath string) int {
@@ -290,19 +294,24 @@ func elevatedChild(jobPath string) int {
 		case "hosts":
 			var r HostsRequest
 			if err = json.Unmarshal(job.Req, &r); err == nil {
-				job.Msg, err = ApplyHosts(r)
+				var m Msg
+				m, err = ApplyHosts(r)
+				job.Msg = &m
 			}
 		case "dup":
 			var r DupRequest
 			if err = json.Unmarshal(job.Req, &r); err == nil {
-				job.Msg, err = CreateDups(r)
+				var m Msg
+				m, err = CreateDups(r)
+				job.Msg = &m
 			}
 		default:
 			err = fmt.Errorf("unknown job %q", job.Kind)
 		}
 	}
 	if err != nil {
-		job.Error = err.Error()
+		m := AsMsg(err)
+		job.Msg, job.Error = nil, &m
 	}
 	job.Req = nil
 	out, _ := json.Marshal(job)

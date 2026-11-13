@@ -65,7 +65,9 @@ func TestDups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(msg)
+	if msg.Code != "dup.done" || msg.Args["n"] != 3 || msg.Args["last"] != "_DUP02.exe" {
+		t.Fatalf("msg = %+v", msg)
+	}
 	b, _ := os.ReadFile(DupName(exe, 2))
 	// Only the first ".log" changes, same as REExtraUtils.
 	if string(b) != "MZ....game.l02....storage.d02....game.log" {
@@ -76,10 +78,13 @@ func TestDups(t *testing.T) {
 	}
 
 	// Both patterns are required.
-	if _, err := PatchDup([]byte("only game.log here"), 0); err == nil {
-		t.Fatal("expected storage.dat not-found error")
+	if _, err := PatchDup([]byte("only game.log here"), 0); AsMsg(err).Code != "err.notGameExe" {
+		t.Fatalf("expected err.notGameExe, got %v", err)
 	}
-	if _, err := CreateDups(DupRequest{Exe: exe, Count: 100}); err == nil {
-		t.Fatal("expected count error")
+	if _, err := CreateDups(DupRequest{Exe: exe, Count: 100}); AsMsg(err).Code != "err.count" {
+		t.Fatalf("expected err.count, got %v", err)
+	}
+	if m := AsMsg(os.ErrNotExist); m.Code != "err.system" || m.Args["detail"] == "" {
+		t.Fatalf("AsMsg(system error) = %+v", m)
 	}
 }

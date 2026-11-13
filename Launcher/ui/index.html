@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,39 +7,41 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- Text comes from ui/i18n.js: data-i18n = text, data-i18n-title = tooltip,
+     data-i18n-html = text with {placeholders} filled by data-vars as <code>. -->
 <div class="window">
 
   <header class="titlebar" id="titlebar">
     <canvas id="matrix" aria-hidden="true"></canvas>
     <div class="title">
-      <span class="logo" aria-hidden="true">🦅</span>
-      <span>Rising2 Launcher</span>
-      <span class="ver" id="ver"></span>
+      <span class="logo" aria-hidden="true">⚔️</span>
+      <span dir="ltr">Rising2 Launcher</span>
+      <span class="ver" id="ver" dir="ltr"></span>
     </div>
     <div class="caption-btns">
-      <button class="cap txt" id="btnZoomOut" title="Smaller text (Ctrl -)" aria-label="Smaller text">A−</button>
-      <button class="cap txt" id="btnZoomIn" title="Bigger text (Ctrl +)" aria-label="Bigger text">A+</button>
+      <button class="cap txt" id="btnZoomOut" data-i18n-title="win.zoomOut" dir="ltr">A−</button>
+      <button class="cap txt" id="btnZoomIn" data-i18n-title="win.zoomIn" dir="ltr">A+</button>
       <span class="cap-gap"></span>
-      <button class="cap min" id="btnMin" title="Minimize" aria-label="Minimize"><i></i></button>
-      <button class="cap close" id="btnClose" title="Close" aria-label="Close"><i></i></button>
+      <button class="cap min" id="btnMin" data-i18n-title="win.min"><i></i></button>
+      <button class="cap close" id="btnClose" data-i18n-title="win.close"><i></i></button>
     </div>
   </header>
 
   <div class="desk">
-  <div class="desktop" aria-hidden="true"><span>Rising2</span></div>
+  <div class="desktop" aria-hidden="true"></div>
 
   <!-- RE_Utils "app": every tool lives here. More apps = more task buttons. -->
   <div class="body app" id="app-reutils">
     <nav class="taskpane">
       <div class="pane-group">
-        <div class="pane-head">Tools</div>
-        <button class="nav active" data-page="hosts"><b>1</b> Hosts / Redirect</button>
-        <button class="nav" data-page="dup"><b>2</b> Duplicate Client</button>
+        <div class="pane-head" data-i18n="nav.tools"></div>
+        <button class="nav active" data-page="hosts"><b>1</b> <span data-i18n="nav.hosts"></span></button>
+        <button class="nav" data-page="dup"><b>2</b> <span data-i18n="nav.dup"></span></button>
       </div>
       <div class="pane-group">
-        <div class="pane-head">Knowledge</div>
-        <button class="nav" data-page="info"><b>3</b> Undocumented Info</button>
-        <button class="nav" data-page="links"><b>4</b> Suggested Links</button>
+        <div class="pane-head" data-i18n="nav.knowledge"></div>
+        <button class="nav" data-page="info"><b>3</b> <span data-i18n="nav.info"></span></button>
+        <button class="nav" data-page="links"><b>4</b> <span data-i18n="nav.links"></span></button>
       </div>
       <div class="pane-foot" id="who"></div>
     </nav>
@@ -47,77 +49,74 @@
     <main class="pages">
 
       <section class="page active" id="page-hosts">
-        <h1>Redirect GameSpy to the fan server</h1>
-        <p class="hint">Points the old GameSpy domains to a server of your choice by editing
-          <code id="hostsPath">hosts</code>. Windows will ask for admin permission when needed.</p>
+        <h1 data-i18n="hosts.title"></h1>
+        <p class="hint" data-i18n-html="hosts.hint" id="hostsHint"></p>
 
         <fieldset>
-          <legend>Point the domains to</legend>
-          <label class="radio"><input type="radio" name="ipmode" value="local" checked> This PC (127.0.0.1)</label>
-          <label class="radio"><input type="radio" name="ipmode" value="custom"> Fan server IP:
-            <input type="text" id="customIP" placeholder="e.g. 203.0.113.7" spellcheck="false"></label>
+          <legend data-i18n="hosts.pointTo"></legend>
+          <label class="radio"><input type="radio" name="ipmode" value="local" checked> <span data-i18n="hosts.local"></span></label>
+          <label class="radio"><input type="radio" name="ipmode" value="custom"> <span data-i18n="hosts.custom"></span>
+            <input type="text" id="customIP" placeholder="203.0.113.7" spellcheck="false" dir="ltr"></label>
         </fieldset>
 
         <fieldset class="grow">
-          <legend>Domains <a href="#" id="resetDomains" class="small">reset to default</a></legend>
-          <textarea id="domains" spellcheck="false"></textarea>
+          <legend><span data-i18n="hosts.domains"></span> <a href="#" id="resetDomains" class="small" data-i18n="hosts.reset"></a></legend>
+          <textarea id="domains" spellcheck="false" dir="ltr"></textarea>
         </fieldset>
 
         <div class="row">
-          <button class="btn primary" id="btnHostsApply">Apply redirect!</button>
-          <button class="btn" id="btnHostsRemove">Remove redirect</button>
-          <span class="pill" id="hostsState">checking…</span>
+          <button class="btn primary" id="btnHostsApply" data-i18n="hosts.apply"></button>
+          <button class="btn" id="btnHostsRemove" data-i18n="hosts.remove"></button>
+          <span class="pill" id="hostsState"></span>
         </div>
       </section>
 
       <section class="page" id="page-dup">
-        <h1>Duplicate client</h1>
-        <p class="hint">Makes copies of RisingEagle.exe that can run side by side on this PC
-          (for multiplayer testing). Each copy writes its own <code>.lNN</code> log and <code>storage.dNN</code>.</p>
+        <h1 data-i18n="dup.title"></h1>
+        <p class="hint" data-i18n-html="dup.hint" data-vars='{"log":".lNN","storage":"storage.dNN"}'></p>
 
         <fieldset>
-          <legend>RisingEagle.exe path</legend>
+          <legend data-i18n="dup.path"></legend>
           <div class="row tight">
-            <input type="text" id="dupExe" placeholder="C:\Games\Rising Eagle\RisingEagle.exe" spellcheck="false">
-            <button class="btn" id="btnPick">Browse…</button>
+            <input type="text" id="dupExe" placeholder="C:\Games\Rising Eagle\RisingEagle.exe" spellcheck="false" dir="ltr">
+            <button class="btn" id="btnPick" data-i18n="dup.browse"></button>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>Options</legend>
-          <label>How many copies (1-99) <input type="number" id="dupCount" min="1" max="99" value="2"></label>
-          <label class="check fixed" title="Required, so the copies don't fight over the same files">
-            <input type="checkbox" checked disabled> Change <code>.log</code> to <code>.lNN</code> <span class="req">(always)</span></label>
-          <label class="check fixed" title="Required, so the copies don't fight over the same files">
-            <input type="checkbox" checked disabled> Change <code>storage.dat</code> to <code>storage.dNN</code> <span class="req">(always)</span></label>
+          <legend data-i18n="dup.options"></legend>
+          <label><span data-i18n="dup.count"></span> <input type="number" id="dupCount" min="1" max="99" value="2"></label>
+          <label class="check fixed" data-i18n-title="dup.alwaysTip"><input type="checkbox" checked disabled>
+            <span data-i18n-html="dup.log" data-vars='{"from":".log","to":".lNN"}'></span> <span class="req" data-i18n="dup.always"></span></label>
+          <label class="check fixed" data-i18n-title="dup.alwaysTip"><input type="checkbox" checked disabled>
+            <span data-i18n-html="dup.storage" data-vars='{"from":"storage.dat","to":"storage.dNN"}'></span> <span class="req" data-i18n="dup.always"></span></label>
         </fieldset>
 
         <div class="row">
-          <button class="btn primary" id="btnDup">Create duplicates!</button>
+          <button class="btn primary" id="btnDup" data-i18n="dup.create"></button>
         </div>
       </section>
 
       <section class="page" id="page-info">
-        <h1>Undocumented info</h1>
+        <h1 data-i18n="info.title"></h1>
         <div class="tabctl">
           <div class="tabs" role="tablist">
-            <button class="tab active" data-info="exe-args.txt">RisingEagle.exe args</button>
-            <button class="tab" data-info="admin-commands.rtf">F11 / Server admin</button>
-            <button class="tab" data-info="tcl-basics.rtf">Tcl console</button>
-            <button class="tab" data-info="tcl-example.rtf">Tcl example</button>
+            <button class="tab active" data-info="exe-args.txt" data-i18n="info.args"></button>
+            <button class="tab" data-info="admin-commands.rtf" data-i18n="info.admin"></button>
+            <button class="tab" data-info="tcl-basics.rtf" data-i18n="info.tcl"></button>
+            <button class="tab" data-info="tcl-example.rtf" data-i18n="info.tclExample"></button>
           </div>
-          <div class="tabpanel doc" id="infoText"></div>
+          <div class="tabpanel doc" id="infoText" dir="ltr"></div>
         </div>
       </section>
 
       <section class="page" id="page-links">
-        <h1>Suggested links</h1>
+        <h1 data-i18n="links.title"></h1>
         <div class="row">
-          <button class="btn" id="btnLinks">Refresh</button>
-          <a class="pill" id="linksState" data-url="https://github.com/yonixw/REExtraUtils/releases/latest"
-             title="Open the GitHub release these links come from"></a>
+          <button class="btn" id="btnLinks" data-i18n="links.refresh"></button>
+          <a class="pill" id="linksState" data-url="https://github.com/yonixw/REExtraUtils/releases/latest"></a>
         </div>
-        <div class="sunken links" id="linksBox"></div>
+        <div class="sunken links" id="linksBox" dir="ltr"></div>
       </section>
 
     </main>
@@ -129,22 +128,24 @@
 
   <footer class="taskbar">
     <div class="tasks">
-      <button class="task active" data-app="app-reutils" title="RE_Utils">
-        <span class="task-ico" aria-hidden="true">🦅</span><span>RE_Utils</span>
+      <button class="task active" data-app="app-reutils" data-i18n-title="task.reutils">
+        <span class="task-ico" aria-hidden="true">🛡️</span><span dir="ltr">RE_Utils</span>
       </button>
     </div>
     <div class="tray">
-      <span class="tray-net" id="trayNet" title="Local Area Connection">
+      <button class="langbar" id="langBar" dir="ltr"></button>
+      <span class="tray-net" id="trayNet">
         <svg viewBox="0 0 18 16" width="18" height="16" aria-hidden="true">
           <g class="pc back"><rect x="7" y="1" width="10" height="8" rx="1"/><rect class="scr" x="8.5" y="2.5" width="7" height="5"/><rect x="10" y="9" width="4" height="1.5"/></g>
           <g class="pc front"><rect x="1" y="5" width="10" height="8" rx="1"/><rect class="scr" x="2.5" y="6.5" width="7" height="5"/><rect x="4" y="13" width="4" height="1.5"/></g>
           <g class="off"><circle cx="13.5" cy="12" r="3.6"/><path d="M12 10.5l3 3m0-3l-3 3"/></g>
         </svg>
       </span>
-      <span class="clock" id="clock"><b id="clockTime"></b><small id="clockDate"></small></span>
+      <span class="clock" id="clock"><b id="clockTime" dir="ltr"></b><small id="clockDate" dir="ltr"></small></span>
     </div>
   </footer>
 </div>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

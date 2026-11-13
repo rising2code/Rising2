@@ -1,8 +1,10 @@
 "use strict";
+// Strings and t() come from i18n.js (loaded first).
 
 // ---------- Bridge to Go ----------
 // In the launcher, Go injects window.__rpc. Opened as a plain file in a browser
-// (for UI work), a small mock answers instead.
+// (for UI work), a small mock answers instead. Go answers with Msg {code, args}
+// objects, which t() translates.
 const rpc = (() => {
   if (!window.__rpc) return mockCall;
   let seq = 0;
@@ -10,7 +12,7 @@ const rpc = (() => {
   window.__rpcDone = (id, r) => {
     const p = pending[id];
     delete pending[id];
-    if (p) r.ok ? p.resolve(r.value) : p.reject(new Error(r.value));
+    if (p) r.ok ? p.resolve(r.value) : p.reject(Object.assign(new Error(t(r.value)), { msg: r.value }));
   };
   return (method, args = null) => {
     if (method.startsWith("win.")) { window.__rpc(0, method, args); return Promise.resolve(); }
@@ -35,11 +37,42 @@ function call(method, args = null) {
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
-const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const store = {
   get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
 };
+const root = document.documentElement;
+
+// ---------- Language ----------
+// Values that only exist at runtime but appear inside translated hints.
+const htmlVars = { path: "hosts" };
+
+function applyI18n() {
+  root.lang = LANG;
+  root.dir = LANG === "he" ? "rtl" : "ltr";
+  $$("[data-i18n]").forEach((el) => (el.textContent = t(el.dataset.i18n)));
+  $$("[data-i18n-title]").forEach((el) => (el.title = t(el.dataset.i18nTitle)));
+  // Text with {placeholders} that become <code> (paths, file names stay LTR).
+  $$("[data-i18n-html]").forEach((el) => {
+    const vars = { ...htmlVars, ...JSON.parse(el.dataset.vars || "{}") };
+    const raw = I18N[LANG][el.dataset.i18nHtml] ?? I18N.en[el.dataset.i18nHtml];
+    el.innerHTML = esc(raw).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? `<code>${esc(vars[k])}</code>` : m));
+  });
+  const lb = $("#langBar");
+  lb.textContent = t("lang.short");
+  lb.title = t("lang.tip");
+  renderWho(); renderHostsPill(); renderLinksPill(); tick(); syncOnline();
+  if (currentInfo) showInfo(currentInfo, false);
+}
+
+function setLang(lang) {
+  LANG = lang;
+  store.set("lang", lang);
+  applyI18n();
+  log(t("con.lang"));
+}
+$("#langBar").onclick = () => setLang(LANG === "he" ? "en" : "he");
 
 // ---------- Hacker console ----------
 const consoleEl = $("#console");
@@ -61,18 +94,19 @@ function log(text, kind = "") {
     step();
   }));
 }
+const logErr = (e) => log(t("con.error", { err: e.message }), "err");
 
-// Run an action with a busy button and console output.
+// Run an action with a busy button and console output. fn may return a Go Msg.
 async function run(btn, label, fn) {
   btn.disabled = true;
   btn.classList.add("busy");
   log(label + " …");
   try {
     const msg = await fn();
-    if (msg) log(msg);
+    if (msg) log(t(msg));
     return true;
   } catch (e) {
-    log("ERROR: " + e.message, "err");
+    logErr(e);
     return false;
   } finally {
     btn.disabled = false;
@@ -84,7 +118,6 @@ async function run(btn, label, fn) {
 // The page fills the whole window, so it finds the edge under the mouse itself and
 // asks Windows to start a native resize (or a move, from the title bar).
 const EDGE = 6;
-const root = document.documentElement;
 function edgeAt(e) {
   const v = e.clientY < EDGE ? "t" : e.clientY >= innerHeight - EDGE ? "b" : "";
   const h = e.clientX < EDGE ? "l" : e.clientX >= innerWidth - EDGE ? "r" : "";
@@ -115,7 +148,7 @@ function setZoom(i, announce = true) {
   store.set("zoom", ZOOMS[zoomIdx]);
   $("#btnZoomOut").disabled = zoomIdx === 0;
   $("#btnZoomIn").disabled = zoomIdx === ZOOMS.length - 1;
-  if (announce) log(`Text size ${Math.round(ZOOMS[zoomIdx] * 100)}%`);
+  if (announce) log(t("con.zoom", { pct: Math.round(ZOOMS[zoomIdx] * 100) }));
 }
 $("#btnZoomOut").onclick = () => setZoom(zoomIdx - 1);
 $("#btnZoomIn").onclick = () => setZoom(zoomIdx + 1);
@@ -133,7 +166,7 @@ document.addEventListener("click", (e) => {
   const a = e.target.closest("[data-url]");
   if (!a) return;
   e.preventDefault();
-  call("open.url", a.dataset.url).catch((err) => log("ERROR: " + err.message, "err"));
+  call("open.url", a.dataset.url).catch(logErr);
 });
 
 // Ripple on every button.
@@ -153,7 +186,7 @@ document.addEventListener("pointerdown", (e) => {
 (function matrix() {
   const cv = $("#matrix");
   const ctx = cv.getContext("2d");
-  const glyphs = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789RISNGEAL2";
+  const glyphs = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789RISNGEAL2אבגדהוזחטיכלמנסעפצקרשת";
   const fs = 10;
   let drops = [];
   function resize() {
@@ -192,20 +225,19 @@ $$(".task").forEach((btn) => (btn.onclick = () => {
 function syncOnline() {
   const net = $("#trayNet");
   net.classList.toggle("offline", !navigator.onLine);
-  net.title = navigator.onLine ? "Local Area Connection\nConnected" : "Local Area Connection\nA network cable is unplugged";
+  net.title = t(navigator.onLine ? "net.on" : "net.off");
 }
 addEventListener("online", syncOnline);
 addEventListener("offline", syncOnline);
-syncOnline();
 
 function tick() {
   const now = new Date();
   const then = new Date(2007, 10, Math.min(now.getDate(), 30), now.getHours(), now.getMinutes());
-  $("#clockTime").textContent = then.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  $("#clockDate").textContent = then.toLocaleDateString("en-US");
-  $("#clock").title = then.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const loc = LANG === "he" ? "he-IL" : "en-US";
+  $("#clockTime").textContent = then.toLocaleTimeString(loc, { hour: "numeric", minute: "2-digit" });
+  $("#clockDate").textContent = then.toLocaleDateString(loc);
+  $("#clock").title = then.toLocaleDateString(loc, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
-tick();
 setInterval(tick, 5000);
 
 // ---------- Navigation ----------
@@ -213,9 +245,17 @@ function show(page) {
   $$(".nav").forEach((n) => n.classList.toggle("active", n.dataset.page === page));
   $$(".page").forEach((p) => p.classList.toggle("active", p.id === "page-" + page));
   store.set("page", page);
-  if (page === "links" && !linksLoaded) loadLinks();
+  if (page === "links" && !linksState) loadLinks();
 }
 $$(".nav").forEach((n) => (n.onclick = () => show(n.dataset.page)));
+
+let boot = null; // app.boot answer
+function renderWho() {
+  if (!boot) return;
+  $("#who").innerHTML = t(boot.elevated ? "who.admin" : "who.user") +
+    "<br>" + esc(t("who.webview", { v: boot.webview || "?" })) +
+    "<br>" + esc(t("who.launcher", { v: boot.version }));
+}
 
 // ---------- 1] Hosts ----------
 let defaultDomains = [];
@@ -233,33 +273,37 @@ $("#resetDomains").onclick = (e) => {
   e.preventDefault();
   $("#domains").value = defaultDomains.join("\n");
   store.set("domains", "");
-  log("Domain list reset to default (" + defaultDomains.length + ").");
+  log(t("hosts.resetDone", { n: defaultDomains.length }));
 };
 
-async function hostsStatus() {
+let hostsLines = null; // null = checking, Error = can't read
+function renderHostsPill() {
   const pill = $("#hostsState");
-  try {
-    const lines = await call("hosts.status");
-    pill.className = "pill " + (lines.length ? "ok" : "warn");
-    pill.textContent = lines.length ? `active: ${lines.length} domains → ${lines[0].split(/\s+/)[0]}` : "not redirected";
-    pill.title = lines.join("\n");
-  } catch (e) {
-    pill.className = "pill warn";
-    pill.textContent = "can't read hosts";
-    pill.title = e.message;
+  if (hostsLines === null) { pill.className = "pill"; pill.textContent = t("hosts.checking"); pill.title = ""; return; }
+  if (hostsLines instanceof Error) {
+    pill.className = "pill warn"; pill.textContent = t("hosts.cantRead"); pill.title = hostsLines.message; return;
   }
+  pill.className = "pill " + (hostsLines.length ? "ok" : "warn");
+  pill.textContent = hostsLines.length
+    ? t("hosts.active", { n: hostsLines.length, ip: hostsLines[0].split(/\s+/)[0] })
+    : t("hosts.none");
+  pill.title = hostsLines.join("\n");
+}
+async function hostsStatus() {
+  try { hostsLines = await call("hosts.status"); } catch (e) { hostsLines = e; }
+  renderHostsPill();
 }
 
 $("#btnHostsApply").onclick = (e) => {
   const ip = ipMode() === "local" ? "127.0.0.1" : ipInput.value.trim();
-  if (!ip) { log("Type the fan server IP first.", "warn"); ipInput.focus(); return; }
+  if (!ip) { log(t("hosts.needIP"), "warn"); ipInput.focus(); return; }
   const domains = $("#domains").value.split(/\s+/).filter(Boolean);
-  run(e.currentTarget, `Redirecting ${domains.length} domains to ${ip}`,
+  run(e.currentTarget, t("hosts.applying", { n: domains.length, ip }),
     () => call("hosts.apply", { ip, domains })).then(hostsStatus);
 };
 $("#btnHostsRemove").onclick = (e) => {
   const domains = $("#domains").value.split(/\s+/).filter(Boolean);
-  run(e.currentTarget, "Removing redirect", () => call("hosts.apply", { ip: "", domains })).then(hostsStatus);
+  run(e.currentTarget, t("hosts.removing"), () => call("hosts.apply", { ip: "", domains })).then(hostsStatus);
 };
 
 // ---------- 2] Duplicate client ----------
@@ -271,8 +315,8 @@ $("#btnPick").onclick = async () => {
 };
 $("#btnDup").onclick = (e) => {
   const req = { exe: dupExe.value.trim(), count: parseInt($("#dupCount").value, 10) || 0 };
-  if (!req.exe) { log("Choose RisingEagle.exe first.", "warn"); return; }
-  run(e.currentTarget, `Creating ${req.count} copies`, () => call("dup.create", req));
+  if (!req.exe) { log(t("dup.needExe"), "warn"); return; }
+  run(e.currentTarget, t("dup.creating", { n: req.count }), () => call("dup.create", req));
 };
 
 // ---------- 3] Info ----------
@@ -307,7 +351,7 @@ function rtfToHtml(rtf) {
     html += css.length ? `<span style="${css.join(";")}">${esc(run)}</span>` : esc(run);
     run = "";
   };
-  const text = (t) => { if (!st.skip) run += t; };
+  const text = (s) => { if (!st.skip) run += s; };
   const set = (k, v) => { if (st[k] !== v) { flush(); st[k] = v; } };
 
   let i = 0;
@@ -348,22 +392,28 @@ function rtfToHtml(rtf) {
 }
 
 let infoTexts = {};
-function showInfo(name) {
-  $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.info === name));
+let currentInfo = "";
+function showInfo(name, animate = true) {
+  currentInfo = name;
+  $$(".tab").forEach((tb) => tb.classList.toggle("active", tb.dataset.info === name));
   const panel = $("#infoText");
-  const src = infoTexts[name] || "";
+  // A Hebrew version (name.he.rtf) wins when the UI is in Hebrew.
+  const heName = name.replace(/\.(\w+)$/, ".he.$1");
+  const src = (LANG === "he" && infoTexts[heName]) || infoTexts[name] || "";
   const isRtf = src.trimStart().startsWith("{" + BS + "rtf");
+  panel.dir = LANG === "he" && infoTexts[heName] ? "rtl" : "ltr";
   panel.classList.toggle("plain", !isRtf);
   panel.innerHTML = isRtf ? rtfToHtml(src) : esc(src);
+  if (!animate) return;
   panel.scrollTop = 0;
   panel.classList.remove("fade-in");
   void panel.offsetWidth;
   panel.classList.add("fade-in");
 }
-$$(".tab").forEach((t) => (t.onclick = () => showInfo(t.dataset.info)));
+$$(".tab").forEach((tb) => (tb.onclick = () => showInfo(tb.dataset.info)));
 
 // ---------- 4] Links ----------
-let linksLoaded = false;
+let linksState = null; // {online, error}
 function renderLinks(text) {
   return text.split("\n").map((l) => {
     const h = l.match(/^(#{1,3})\s+(.*)$/);
@@ -371,49 +421,56 @@ function renderLinks(text) {
     return esc(l).replace(/https?:\/\/[^\s)]+/g, (u) => `<a data-url="${u}">${u}</a>`);
   }).join("\n").replace(/\n(<h[23]>)/g, "$1").replace(/(<\/h[23]>)\n/g, "$1");
 }
-async function loadLinks() {
-  linksLoaded = true;
-  const box = $("#linksBox");
+function renderLinksPill() {
   const pill = $("#linksState");
-  await run($("#btnLinks"), "Fetching community links", async () => {
+  if (!linksState) { pill.hidden = true; return; }
+  pill.hidden = false;
+  pill.className = "pill " + (linksState.online ? "ok" : "warn");
+  pill.textContent = t(linksState.online ? "links.online" : "links.offline");
+  pill.title = (linksState.error ? linksState.error + "\n" : "") + t("links.tip", { url: pill.dataset.url });
+}
+async function loadLinks() {
+  linksState = linksState || { online: false };
+  const box = $("#linksBox");
+  await run($("#btnLinks"), t("links.fetching"), async () => {
     const r = await call("links.fetch");
     box.innerHTML = renderLinks(r.text);
     box.classList.remove("fade-in"); void box.offsetWidth; box.classList.add("fade-in");
-    pill.className = "pill " + (r.online ? "ok" : "warn");
-    pill.textContent = r.online ? "latest from GitHub releases" : "offline copy · open GitHub releases";
-    pill.title = (r.error ? r.error + "\n" : "") + "Open " + pill.dataset.url;
-    return r.online ? "Links updated." : "Offline, showing built-in links (" + r.error + ")";
+    linksState = { online: r.online, error: r.error };
+    renderLinksPill();
+    return r.online ? t("links.updated") : t("links.fallback", { err: r.error });
   });
 }
 $("#btnLinks").onclick = loadLinks;
 
 // ---------- Boot ----------
-(async function boot() {
-  log("RISING2 LAUNCHER // booting");
+(async function start() {
+  applyI18n();
+  log(t("con.boot"));
   try {
-    const b = await call("app.boot");
-    $("#ver").textContent = b.version;
-    $("#hostsPath").textContent = b.hostsPath;
-    $("#who").innerHTML = (b.elevated ? "🛡 Running as admin" : "👤 Normal user<br>(asks for admin only when needed)") +
-      "<br>WebView2 " + esc(b.webview || "?") + "<br>Launcher " + esc(b.version);
-    defaultDomains = b.domains;
-    infoTexts = b.info;
+    boot = await call("app.boot");
+    $("#ver").textContent = boot.version;
+    htmlVars.path = boot.hostsPath;
+    defaultDomains = boot.domains;
+    infoTexts = boot.info;
     $("#domains").value = store.get("domains", "") || defaultDomains.join("\n");
     ipInput.value = store.get("ip", "");
     if (ipInput.value) { $("input[value=custom]").checked = true; syncIP(); }
     dupExe.value = store.get("exe", "");
-    showInfo("exe-args.txt");
+    currentInfo = "exe-args.txt";
+    applyI18n();
     show(store.get("page", "hosts"));
-    log(`WebView2 ${b.webview} OK · hosts: ${b.hostsPath}`);
+    log(t("con.ready", { v: boot.webview, path: boot.hostsPath }));
     hostsStatus();
   } catch (e) {
-    log("BOOT FAILED: " + e.message, "err");
+    log(t("con.bootFail", { err: e.message }), "err");
   }
 })();
 
 // ---------- Mock backend (browser preview only) ----------
 function mockCall(method, args) {
   const wait = (v, ms = 500) => new Promise((r) => setTimeout(() => r(v), ms));
+  const fail = (code, a) => new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error(t({ code, args: a })), { msg: { code, args: a } })), 300));
   switch (method) {
     case "app.boot": return wait({
       version: "abc1234+dirty", elevated: false, webview: "mock", hostsPath: "C:\\Windows\\System32\\drivers\\etc\\hosts",
@@ -426,9 +483,11 @@ function mockCall(method, args) {
       },
     }, 50);
     case "hosts.status": return wait([]);
-    case "hosts.apply": return args.ip ? wait(`Redirected ${args.domains.length} domains to ${args.ip}.`, 1200) : wait("Removed all Rising Eagle redirects.");
+    case "hosts.apply": return args.ip
+      ? wait({ code: "hosts.applied", args: { n: args.domains.length, ip: args.ip } }, 1200)
+      : wait({ code: "hosts.removed" });
     case "dup.pick": return wait("C:\\Games\\Rising Eagle\\RisingEagle.exe");
-    case "dup.create": return Promise.reject(new Error("mock: open RisingEagle.exe failed"));
+    case "dup.create": return fail("err.notGameExe", { text: "storage.dat" });
     case "links.fetch": return wait({ text: "# Discords\n\nhttps://discord.com/invite/example [Newer]\n\n## Old\nhttps://example.com", online: false, error: "mock" });
     default: return wait(null, 10);
   }

@@ -25,7 +25,11 @@
     </div>
   </header>
 
-  <div class="body">
+  <div class="desk">
+  <div class="desktop" aria-hidden="true"><span>Rising2</span></div>
+
+  <!-- RE_Utils "app": every tool lives here. More apps = more task buttons. -->
+  <div class="body app" id="app-reutils">
     <nav class="taskpane">
       <div class="pane-group">
         <div class="pane-head">Tools</div>
@@ -119,7 +123,27 @@
     </main>
   </div>
 
+  </div>
+
   <footer class="console" id="console" aria-live="polite"></footer>
+
+  <footer class="taskbar">
+    <div class="tasks">
+      <button class="task active" data-app="app-reutils" title="RE_Utils">
+        <span class="task-ico" aria-hidden="true">🦅</span><span>RE_Utils</span>
+      </button>
+    </div>
+    <div class="tray">
+      <span class="tray-net" id="trayNet" title="Local Area Connection">
+        <svg viewBox="0 0 18 16" width="18" height="16" aria-hidden="true">
+          <g class="pc back"><rect x="7" y="1" width="10" height="8" rx="1"/><rect class="scr" x="8.5" y="2.5" width="7" height="5"/><rect x="10" y="9" width="4" height="1.5"/></g>
+          <g class="pc front"><rect x="1" y="5" width="10" height="8" rx="1"/><rect class="scr" x="2.5" y="6.5" width="7" height="5"/><rect x="4" y="13" width="4" height="1.5"/></g>
+          <g class="off"><circle cx="13.5" cy="12" r="3.6"/><path d="M12 10.5l3 3m0-3l-3 3"/></g>
+        </svg>
+      </span>
+      <span class="clock" id="clock"><b id="clockTime"></b><small id="clockDate"></small></span>
+    </div>
+  </footer>
 </div>
 <script src="app.js"></script>
 </body>

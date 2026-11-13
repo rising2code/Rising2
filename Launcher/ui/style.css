@@ -159,3 +159,42 @@ a.pill:hover { text-decoration: underline; }
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
   #matrix { display: none; }
 }
+
+/* ---------- Desktop + XP taskbar ---------- */
+.desk { flex: 1; min-height: 0; position: relative; display: flex; }
+.desktop { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(ellipse at 30% 110%, #3b8d2c 0 30%, transparent 31%),
+              linear-gradient(180deg, #2f6fd8 0%, #6aa5f0 55%, #9cc8f7 70%, #4c9b31 71%, #2f7a20 100%); }
+.desktop span { font: italic bold 44px "Trebuchet MS", sans-serif; color: #fff3; text-shadow: 0 2px 6px #0003; }
+.app { position: relative; flex: 1; background: var(--face);
+  transform-origin: 60px calc(100% + 110px); transition: transform .32s var(--ease), opacity .28s; }
+.app.minimized { transform: scale(.08); opacity: 0; pointer-events: none; }
+
+.taskbar { flex: none; height: 30px; display: flex; align-items: stretch; user-select: none;
+  background: linear-gradient(180deg, #3168d5 0%, #4993e6 6%, #2157d7 12%, #2663e0 90%, #1941a5 100%);
+  border-top: 1px solid #0c3daa; }
+.tasks { flex: 1; display: flex; align-items: center; gap: 3px; padding: 0 6px; min-width: 0; }
+.task { display: flex; align-items: center; gap: 6px; width: 160px; height: 22px; padding: 0 8px; cursor: pointer;
+  border: 1px solid #1c4cc7; border-radius: 3px; color: #fff; font: 11px Tahoma, sans-serif; text-align: left;
+  background: linear-gradient(180deg, #4f8ff0, #3a7ae8 45%, #2e6be0); box-shadow: inset 1px 1px 0 #7eb2ff;
+  position: relative; overflow: hidden; transition: background .2s, box-shadow .2s; }
+.task:hover { background: linear-gradient(180deg, #6aa3f7, #4c89ee 45%, #3b78e6); }
+.task.active { background: linear-gradient(180deg, #1c4bb8, #1e52c4); box-shadow: inset 1px 1px 2px #0b2a75; font-weight: bold; }
+.task-ico { font-size: 13px; }
+.tray { display: flex; align-items: center; gap: 8px; padding: 0 10px 0 12px; color: #fff;
+  background: linear-gradient(180deg, #0c59b9 0%, #139ee9 6%, #18b9f0 12%, #1490e6 90%, #0b5fc2 100%);
+  border-left: 1px solid #0a3e94; box-shadow: inset 1px 0 0 #1ab4f3; }
+.tray-net { display: grid; cursor: default; }
+.tray-net svg .pc rect { fill: #d7e4f5; stroke: #1b3c73; stroke-width: .6; }
+.tray-net svg .pc .scr { fill: #2b5ea8; stroke: none; transition: fill .15s; }
+.tray-net.busy .front .scr { animation: netblink .5s steps(1) infinite; }
+.tray-net.busy .back .scr { animation: netblink .5s steps(1) infinite .25s; }
+@keyframes netblink { 50% { fill: #9fe7ff; } }
+.tray-net svg .off { display: none; }
+.tray-net.offline svg .off { display: inline; }
+.tray-net svg .off circle { fill: #d93a2b; stroke: #fff; stroke-width: .8; }
+.tray-net svg .off path { stroke: #fff; stroke-width: 1.3; stroke-linecap: round; }
+.clock { display: flex; flex-direction: column; align-items: center; line-height: 1.1; font: 11px Tahoma, sans-serif;
+  text-shadow: 0 1px #0004; cursor: default; }
+.clock b { font-weight: normal; }
+.clock small { font-size: 9px; opacity: .9; }

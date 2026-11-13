@@ -3,7 +3,7 @@
 // ---------- Bridge to Go ----------
 // In the launcher, Go injects window.__rpc. Opened as a plain file in a browser
 // (for UI work), a small mock answers instead.
-const call = (() => {
+const rpc = (() => {
   if (!window.__rpc) return mockCall;
   let seq = 0;
   const pending = {};
@@ -21,6 +21,17 @@ const call = (() => {
     });
   };
 })();
+
+// Every backend call makes the tray network icon blink, like XP network activity.
+let inFlight = 0;
+function call(method, args = null) {
+  if (method.startsWith("win.")) return rpc(method, args);
+  inFlight++;
+  $("#trayNet").classList.add("busy");
+  return rpc(method, args).finally(() => {
+    if (--inFlight === 0) $("#trayNet").classList.remove("busy");
+  });
+}
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -167,6 +178,35 @@ document.addEventListener("pointerdown", (e) => {
     });
   }, 70);
 })();
+
+// ---------- Taskbar ----------
+// Each task button owns one "app" panel. Like XP: clicking the active one minimizes it,
+// clicking it again restores it.
+$$(".task").forEach((btn) => (btn.onclick = () => {
+  const app = document.getElementById(btn.dataset.app);
+  const minimized = app.classList.toggle("minimized");
+  btn.classList.toggle("active", !minimized);
+}));
+
+// Tray: network status and a clock stuck in November 2007 (time is real).
+function syncOnline() {
+  const net = $("#trayNet");
+  net.classList.toggle("offline", !navigator.onLine);
+  net.title = navigator.onLine ? "Local Area Connection\nConnected" : "Local Area Connection\nA network cable is unplugged";
+}
+addEventListener("online", syncOnline);
+addEventListener("offline", syncOnline);
+syncOnline();
+
+function tick() {
+  const now = new Date();
+  const then = new Date(2007, 10, Math.min(now.getDate(), 30), now.getHours(), now.getMinutes());
+  $("#clockTime").textContent = then.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  $("#clockDate").textContent = then.toLocaleDateString("en-US");
+  $("#clock").title = then.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+}
+tick();
+setInterval(tick, 5000);
 
 // ---------- Navigation ----------
 function show(page) {

@@ -24,7 +24,7 @@ var assets embed.FS
 const (
 	appTitle      = "Rising2 Launcher"
 	winW, winH    = 760, 540 // in 96-DPI pixels
-	minW, minH    = 600, 420
+	minW, minH    = 600, 470
 	webview2Page  = "https://developer.microsoft.com/microsoft-edge/webview2/"
 	createNoWindw = 0x08000000
 )

@@ -209,3 +209,8 @@ a.pill:hover { text-decoration: underline; }
   text-shadow: 0 1px #0004; cursor: default; }
 .clock b { font-weight: normal; }
 .clock small { font-size: 9px; opacity: .9; }
+
+/* Drop target for dragging RisingEagle.exe from Explorer. */
+#page-dup.dropping { outline: 2px dashed #2a8a3e; outline-offset: -6px; background: #e9f7ec80; }
+#dupExe.flash { animation: flash 1s var(--ease); }
+@keyframes flash { from { background: #b7f5c4; box-shadow: 0 0 0 4px #3cff6b55; } }

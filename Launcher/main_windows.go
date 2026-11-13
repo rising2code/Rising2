@@ -60,6 +60,7 @@ func main() {
 	w.SetSize(int(minW*dpi/96), int(minH*dpi/96), webview2.HintMin) // before makeFrameless: it touches the style
 	makeFrameless(hwnd, dpi)
 	bindBridge(w, hwnd)
+	enableFileDrop(w) // best effort: without it, typing or Browse… still work
 	w.SetHtml(page())
 	w.Run()
 }

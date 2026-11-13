@@ -26,11 +26,12 @@ const I18N = {
 
     "dup.title": "שכפול הלקוח",
     "dup.hint": "יוצר עותקים של RisingEagle.exe שאפשר להריץ במקביל על אותו מחשב (לבדיקות מרובות משתתפים). כל עותק כותב קובץ לוג {log} וקובץ {storage} משלו.",
-    "dup.path": "הנתיב ל-RisingEagle.exe", "dup.browse": "עיון…", "dup.options": "אפשרויות",
+    "dup.path": "הנתיב ל-RisingEagle.exe (אפשר לגרור לכאן מהסייר)", "dup.browse": "עיון…", "dup.options": "אפשרויות",
     "dup.count": "כמה עותקים (1-99)", "dup.log": "שינוי {from} ל-{to}", "dup.storage": "שינוי {from} ל-{to}",
     "dup.always": "(תמיד)", "dup.alwaysTip": "חובה, כדי שהעותקים לא יתנגשו על אותם קבצים",
     "dup.create": "צור עותקים!", "dup.needExe": "קודם בחר את RisingEagle.exe.",
-    "dup.creating": "יוצר {n} עותקים", "dup.done": "נוצרו {n} עותקים ליד {exe} (‎_DUP00.exe עד {last}).",
+    "dup.creating": "יוצר {n} עותקים",
+    "dup.dropped": "נבחר: {path}", "dup.dropNotExe": "{name} אינו קובץ exe", "dup.dropNoPath": "לא ניתן לקרוא את הנתיב של {name}, השתמש ב'עיון…'", "dup.done": "נוצרו {n} עותקים ליד {exe} (‎_DUP00.exe עד {last}).",
 
     "info.title": "מידע לא מתועד", "info.args": "פרמטרים ל-RisingEagle.exe", "info.admin": "F11 / ניהול שרת",
     "info.tcl": "קונסולת Tcl", "info.tclExample": "דוגמת Tcl",
@@ -76,11 +77,12 @@ const I18N = {
 
     "dup.title": "Duplicate client",
     "dup.hint": "Makes copies of RisingEagle.exe that can run side by side on this PC (for multiplayer testing). Each copy writes its own {log} log and {storage}.",
-    "dup.path": "RisingEagle.exe path", "dup.browse": "Browse…", "dup.options": "Options",
+    "dup.path": "RisingEagle.exe path (or drag it here from Explorer)", "dup.browse": "Browse…", "dup.options": "Options",
     "dup.count": "How many copies (1-99)", "dup.log": "Change {from} to {to}", "dup.storage": "Change {from} to {to}",
     "dup.always": "(always)", "dup.alwaysTip": "Required, so the copies don't fight over the same files",
     "dup.create": "Create duplicates!", "dup.needExe": "Choose RisingEagle.exe first.",
-    "dup.creating": "Creating {n} copies", "dup.done": "Created {n} copies next to {exe} (_DUP00.exe - {last}).",
+    "dup.creating": "Creating {n} copies",
+    "dup.dropped": "Selected: {path}", "dup.dropNotExe": "{name} is not an .exe", "dup.dropNoPath": "Can't read the path of {name}, use Browse…", "dup.done": "Created {n} copies next to {exe} (_DUP00.exe - {last}).",
 
     "info.title": "Undocumented info", "info.args": "RisingEagle.exe args", "info.admin": "F11 / Server admin",
     "info.tcl": "Tcl console", "info.tclExample": "Tcl example",

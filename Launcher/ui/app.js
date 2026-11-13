@@ -313,6 +313,34 @@ $("#btnPick").onclick = async () => {
   const p = await call("dup.pick", dupExe.value.trim());
   if (p) { dupExe.value = p; store.set("exe", p); }
 };
+// Drag & drop from Explorer. The browser would download the file, so stop that
+// everywhere. A page only knows a file's name; Go reads the full path from the File
+// object (filedrop_windows.go) and calls window.__dropped(path).
+document.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = e.target.closest("#page-dup") ? "copy" : "none";
+  $("#page-dup").classList.toggle("dropping", !!e.target.closest("#page-dup"));
+});
+document.addEventListener("dragleave", (e) => { if (!e.relatedTarget) $("#page-dup").classList.remove("dropping"); });
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  $("#page-dup").classList.remove("dropping");
+  const file = e.dataTransfer.files[0];
+  if (!file || !e.target.closest("#page-dup")) return;
+  if (window.chrome?.webview?.postMessageWithAdditionalObjects) {
+    window.chrome.webview.postMessageWithAdditionalObjects("rising2:drop", [file]);
+  } else {
+    log(t("dup.dropNoPath", { name: file.name }), "warn"); // browser preview / very old WebView2
+  }
+});
+window.__dropped = (path) => {
+  if (!/\.exe$/i.test(path)) { log(t("dup.dropNotExe", { name: path.split("\\").pop() }), "warn"); return; }
+  dupExe.value = path;
+  store.set("exe", path);
+  dupExe.classList.remove("flash"); void dupExe.offsetWidth; dupExe.classList.add("flash");
+  log(t("dup.dropped", { path }));
+};
+
 $("#btnDup").onclick = (e) => {
   const req = { exe: dupExe.value.trim(), count: parseInt($("#dupCount").value, 10) || 0 };
   if (!req.exe) { log(t("dup.needExe"), "warn"); return; }

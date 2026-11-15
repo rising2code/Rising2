@@ -127,3 +127,6 @@ see through). The server loads its own copy of the level and runs its own physic
 collision for every soldier, so the player cannot change the physics the server
 experiences: a wall that exists in the server's level still blocks them. Details and what is
 still unverified: [server_client_auth_physics.md](server_client_auth_physics.md).
+
+Seasons, mesh counts, and why `.addcheck` can't protect meshes as-is:
+[client_sync_seasons_meshes.md](client_sync_seasons_meshes.md).

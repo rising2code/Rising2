@@ -122,6 +122,7 @@ Why it works this way and what was considered: `docs/map_tracking.md`.
 
 How the game itself checks that a joining player has the same maps as the server (and
 why "Level files differ" shows a path): [docs/join_map_check.md](docs/join_map_check.md).
+Seasons, map packs and mesh checks: [docs/client_sync_seasons_meshes.md](docs/client_sync_seasons_meshes.md).
 
 ### Stats rules: `config/rules.py`
 

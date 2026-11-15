@@ -120,6 +120,9 @@ from the last 5 heartbeats of that server during the match. Without the setting,
 games, or for an unlisted account they are `""`, and a `[MAP]` log line says why.
 Why it works this way and what was considered: `docs/map_tracking.md`.
 
+How the game itself checks that a joining player has the same maps as the server (and
+why "Level files differ" shows a path): [docs/join_map_check.md](docs/join_map_check.md).
+
 ### Stats rules: `config/rules.py`
 
 All stats logic is one Python file. For each player in a match report the server calls

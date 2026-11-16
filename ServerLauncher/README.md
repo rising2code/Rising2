@@ -116,7 +116,12 @@ On Windows the first Login press is often ignored, so expect "failure 1" there. 
 
 ## Build
 
+Needs only Docker (and npm to run the scripts). Nothing is installed from npm.
+
 ```bash
-docker build -t rising2/mingw32 build
-docker run --rm -v "$PWD/src:/src" -v "$PWD/bin:/out" rising2/mingw32
+npm run build         # bin/r2launch.exe
+npm run build-tools   # tools/lvdump.exe, tools/sampler.exe (debug tools, not committed)
 ```
+
+Both build the MinGW image (`build/Dockerfile`) first. The exact commands are in `package.json`.
+Rebuild `bin/r2launch.exe` before `docker compose build`, because the server image copies it in.

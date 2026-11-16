@@ -1,0 +1,10 @@
+{
+  "name": "rising2-server-launcher",
+  "private": true,
+  "description": "Not a Node project: these scripts only wrap the Docker (MinGW) builds of the C programs.",
+  "scripts": {
+    "build:image": "docker build -t rising2/mingw32 build",
+    "build": "npm run build:image && docker run --rm -v ./src:/src -v ./bin:/out rising2/mingw32",
+    "build-tools": "npm run build:image && docker run --rm -v ./tools:/src -w /src rising2/mingw32 sh -c \"i686-w64-mingw32-gcc -O2 -s -Wall -o lvdump.exe lvdump.c -luser32 -static-libgcc && i686-w64-mingw32-gcc -O2 -s -Wall -o sampler.exe sampler.c -static-libgcc\""
+  }
+}

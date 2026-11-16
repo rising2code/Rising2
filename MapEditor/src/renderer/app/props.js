@@ -50,6 +50,7 @@ export class PropsPanel {
     const el = this.el;
     if (!target) { el.innerHTML = '<p class="muted">Select an object. Ctrl+click or the Select tool (0) picks several.</p>'; return; }
     if (target.spawn) return this.showSpawn(target.spawn);
+    if (target.nav) return this.app.nav.showProps(el, target);
     const n = target.node;
     const isRoot = !n.parent;
     let h = '';

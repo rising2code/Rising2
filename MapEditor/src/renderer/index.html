@@ -118,6 +118,30 @@
             <button id="btnTerrainFlat" title="Set the whole terrain to one height">Flatten all…</button>
           </div>
         </div>
+        <div class="panel-title collapsible" data-target="navPanel" title="The map bots use to find their way (docs/navmesh-assumptions.md)">Bot navigation ▾</div>
+        <div id="navPanel">
+          <div class="row">
+            <button id="navBuild" title="Build the navigation map from the terrain and every solid model, with the markers below">Recalculate</button>
+            <button id="navExport" title="Write &lt;level&gt;.nav.json for the bots: polygons, links and goals">Export JSON…</button>
+          </div>
+          <div class="row small">
+            Show
+            <label title="Polygon edges, coloured by cost"><input type="checkbox" id="navShow_mesh" checked> Mesh</label>
+            <label title="See-through polygon fill"><input type="checkbox" id="navShow_fill" checked> Fill</label>
+            <label title="Jumps, power jumps, drops and ladder climbs"><input type="checkbox" id="navShow_links" checked> Links</label>
+            <label title="Hand-placed markers"><input type="checkbox" id="navShow_markers" checked> Markers</label>
+          </div>
+          <div class="navlegend small">
+            <span><i style="background:#3ddc84"></i>walk 1</span><span><i style="background:#f5d142"></i>crouch 2</span>
+            <span><i style="background:#ff8c3a"></i>prone 5</span><span><i style="background:#ff4d6a"></i>avoid 10</span>
+            <span><i style="background:#40e0ff"></i>jump</span><span><i style="background:#d070ff"></i>power</span>
+            <span><i style="background:#5a8cff"></i>drop</span><span><i style="background:#ffffff"></i>climb</span>
+          </div>
+          <div id="navInfo" class="muted small"></div>
+          <div class="muted small" style="padding:4px 8px 0">Add a marker at the centre of the view:</div>
+          <div id="navAdd" class="btnwrap"></div>
+          <div id="navList"></div>
+        </div>
       </aside>
     </section>
 

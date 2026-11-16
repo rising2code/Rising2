@@ -22,4 +22,6 @@ contextBridge.exposeInMainWorld('api', {
   openPath: call('shell:open'),
   loadSettings: call('settings:load'),
   saveSettings: call('settings:save'),
+  navBuild: call('nav:build'),
+  onNavProgress: (fn) => ipcRenderer.on('nav:progress', (_e, p) => fn(p[0], p[1])),
 });

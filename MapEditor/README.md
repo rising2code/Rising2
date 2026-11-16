@@ -99,6 +99,17 @@ Heights are stored as `minHeight + B + G/100 + R/10000` in the 513×513 `heightm
   - **Save selected** writes the selected object as a prefab into `prefabs\` (the same format the game's templates use).
 - **Level info tab:** edit the menu texts in `<level>.dat` (name, briefing per mission and side).
 
+### Bot navigation (navmesh)
+The **Bot navigation** panel (right side) builds the map bots use to find their way. Every rule
+and number is in [docs/navmesh-assumptions.md](docs/navmesh-assumptions.md).
+- **Recalculate** builds it from the terrain and every solid model (Recast, in a worker thread; Eiffel takes about 22 s).
+  It is drawn over any view: polygon edges and a see-through fill coloured by cost (green walk, yellow crouch,
+  orange prone, red avoid), and links (cyan jump, purple power jump, blue drop, white ladder climb).
+- **Markers**, added at the centre of the view: avoid, block, ignore and walkable boxes, points of interest and
+  manual links. Move them with the gizmo (boxes also scale), edit them in the properties panel, delete, duplicate,
+  undo. They are saved automatically to `output\<level>\<level>.navedits.json`.
+- **Export JSON…** writes `<level>.nav.json` (polygons, neighbours, links, goals) for bots in any language.
+
 ## File formats (as found in the Eiffel level)
 - `.n2`: Nebula TCL script. It contains `new <class> <name>`, `sel <name>`, `sel ..` and `.command args` lines.
   Positions are in metres with Y up. `.seteuler` is in **degrees**, applied X then Y then Z.

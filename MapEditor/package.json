@@ -10,6 +10,8 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@recast-navigation/core": "0.43.1",
+    "@recast-navigation/generators": "0.43.1",
     "three": "0.170.0"
   },
   "devDependencies": {

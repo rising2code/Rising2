@@ -707,7 +707,11 @@ export class Viewport extends EventTarget {
 
   // ---------------------------------------------------------------- selection
 
-  static same(a, b) { return a.node ? a.node === b.node : a.spawn === b.spawn; }
+  static same(a, b) {
+    if (a.node || b.node) return a.node === b.node;
+    if (a.spawn || b.spawn) return a.spawn === b.spawn;
+    return a.nav === b.nav && a.end === b.end; // bot navigation markers (nav.js)
+  }
 
   /** Replace the selection. `targets`: null, one {node}/{spawn}, or an array of them. */
   select(targets) {
@@ -721,7 +725,11 @@ export class Viewport extends EventTarget {
       const onlySpawns = this.selection.every((t) => t.spawn);
       if (objs.length === 1) this.gizmo.attach(objs[0]);
       else { this.placePivot(); this.gizmo.attach(this.pivot); }
-      this.gizmo.setMode(onlySpawns && this.mode === 'scale' ? 'translate' : this.mode);
+      // spawn points and navigation points only move; navigation boxes move and scale
+      const noScale = this.selection.every((t) => t.spawn || (t.nav && !this.nav?.isBox(t)));
+      const noRotate = this.selection.some((t) => t.nav);
+      const mode = (this.mode === 'scale' && noScale) || (this.mode === 'rotate' && noRotate) ? 'translate' : this.mode;
+      this.gizmo.setMode(mode);
       // spawn points only turn about Y
       this.gizmo.showX = this.gizmo.showZ = !(onlySpawns && this.mode === 'rotate');
     }
@@ -742,6 +750,7 @@ export class Viewport extends EventTarget {
   objectOf(t) {
     if (!t) return null;
     if (t.spawn) return this.spawnObject(t.spawn) || null;
+    if (t.nav) return this.nav?.objectOf(t) || null;
     return this.objects.get(t.node.uid) || null;
   }
 
@@ -754,7 +763,7 @@ export class Viewport extends EventTarget {
     obj.updateWorldMatrix(true, true);
     const b = new THREE.Box3();
     obj.traverse((o) => {
-      if ((o.userData.pickProxy || o.userData.model || o.userData.spawn) && o.geometry) {
+      if ((o.userData.pickProxy || o.userData.model || o.userData.spawn || o.userData.navTarget) && o.geometry) {
         if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         b.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));
       }
@@ -859,6 +868,7 @@ export class Viewport extends EventTarget {
   captureTransform(t) {
     if (!t) return null;
     if (t.spawn) return { spawn: [...t.spawn.args] };
+    if (t.nav) return this.nav.capture(t);
     const g = (n) => (t.node.cmd(n) ? [...t.node.cmd(n).args] : null);
     return { setposition: g('setposition'), seteuler: g('seteuler'), setscale: g('setscale') };
   }
@@ -867,6 +877,7 @@ export class Viewport extends EventTarget {
   writeBack(t) {
     const obj = this.objectOf(t);
     if (!t || !obj) return;
+    if (t.nav) { this.nav.writeBack(t); return; }
     if (t.spawn) {
       const a = t.spawn.args;
       const e = new THREE.Euler().setFromQuaternion(obj.quaternion, 'YXZ');
@@ -1052,6 +1063,7 @@ export class Viewport extends EventTarget {
     this.raycaster.setFromCamera(p, this.camera);
     const targets = [];
     if (this.spawnGroup.visible) targets.push(...this.spawnGroup.children);
+    if (this.nav) targets.push(...this.nav.pickables());
     const models = this.viewMode !== 'boxes';
     for (const g of this.objects.values()) {
       if (!g.visible) continue;
@@ -1066,8 +1078,12 @@ export class Viewport extends EventTarget {
     // prefer models / small boxes the ray passes through: for proxies take the smallest box
     // among the first few hits, so clicking inside a big building's box can still reach crates
     let best = null;
+    // navigation boxes are see-through: anything behind or inside them wins; a box is picked
+    // only when nothing else is under the mouse (or from the list in the navigation panel)
+    const isNavBox = (h) => h.object.userData.navTarget && this.nav.isBox(h.object.userData.navTarget);
+    if (hits.some((h) => !isNavBox(h))) hits.splice(0, hits.length, ...hits.filter((h) => !isNavBox(h)));
     if (hits.length) {
-      if (models || hits[0].object.userData.spawn) best = hits[0];
+      if (models || hits[0].object.userData.spawn || hits[0].object.userData.navTarget) best = hits[0];
       else {
         const near = hits.filter((h) => h.distance < hits[0].distance + 30).slice(0, 8);
         best = near.reduce((a, h) => (h.object.scale.lengthSq() < a.object.scale.lengthSq() ? h : a));
@@ -1075,6 +1091,7 @@ export class Viewport extends EventTarget {
     }
     if (!best) return null;
     if (best.object.userData.spawn) return { spawn: best.object.userData.spawn };
+    if (best.object.userData.navTarget) return { ...best.object.userData.navTarget };
     let node = best.object.parent.userData.node;
     if (!exact) while (node.parent && node.parent.parent && node.parent.name !== 'entities') node = node.parent;
     return { node };

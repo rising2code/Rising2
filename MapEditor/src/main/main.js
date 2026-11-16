@@ -177,6 +177,23 @@ handle('clipboard:read', () => clipboard.readText());
 handle('clipboard:write', (text) => { clipboard.writeText(text); return true; });
 handle('shell:open', (p) => shell.openPath(p));
 
+// Bots' navigation map: built by Recast in a worker thread (nav-worker.mjs); progress is sent
+// to the window as 'nav:progress' events. A new build stops the previous one.
+let navWorker = null;
+ipcMain.handle('nav:build', (event, input) => new Promise((resolve, reject) => {
+  const { Worker } = require('worker_threads');
+  if (navWorker) navWorker.terminate();
+  const w = (navWorker = new Worker(path.join(__dirname, 'nav-worker.mjs'), { workerData: input }));
+  w.on('message', (m) => {
+    if (m.progress) { if (!event.sender.isDestroyed()) event.sender.send('nav:progress', m.progress); return; }
+    if (navWorker === w) navWorker = null;
+    w.terminate();
+    if (m.error) reject(new Error(m.error)); else resolve(m.result);
+  });
+  w.on('error', (e) => { if (navWorker === w) navWorker = null; reject(e); });
+  w.on('exit', (code) => { if (navWorker === w) { navWorker = null; reject(new Error('Navigation build stopped (' + code + ')')); } });
+}));
+
 handle('settings:load', async () => {
   try { return JSON.parse(await fsp.readFile(settingsFile(), 'utf8')); } catch { return {}; }
 });

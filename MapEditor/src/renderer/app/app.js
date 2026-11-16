@@ -7,6 +7,7 @@ import { PropsPanel } from './props.js';
 import { PrefabPanel } from './prefabs.js';
 import { TexturesTab } from './textures.js';
 import { ExportDialog } from './export.js';
+import { NavTool } from './nav.js';
 import { N2Node, parseN2, writeN2, uniqueChildName, nodeFromTemplate, fmt } from '../lib/n2.js';
 import { parseLevelDatEntries } from '../lib/levelfiles.js';
 
@@ -25,10 +26,12 @@ class App {
     this.prefabs = new PrefabPanel($('prefabList'), $('prefabFilter'), this);
     this.textures = new TexturesTab(this);
     this.exporter = new ExportDialog(this);
+    this.nav = new NavTool(this);
 
     this.viewport.addEventListener('selected', (e) => {
       this.tree.setSelection(e.detail);
       this.props.show(e.detail);
+      this.nav.renderList();
       this.status(this.describeSelection());
     });
     this.viewport.addEventListener('transformed', (e) => this.onTransformed(e.detail));
@@ -177,7 +180,7 @@ class App {
     this.hideMenu();
     const n = this.sel.length;
     const one = n === 1 ? this.sel[0] : null;
-    const what = n === 0 ? '' : n === 1 ? (one.spawn ? 'spawn point' : one.node.name) : `${n} objects`;
+    const what = n === 0 ? '' : n === 1 ? (one.spawn ? 'spawn point' : one.nav ? this.nav.describe(one) : one.node.name) : `${n} objects`;
     const items = [
       ['Duplicate', 'Ctrl+D', () => this.duplicateSelection(), n > 0],
       ['Copy', 'Ctrl+C', () => this.copyToClipboard(), n > 0],
@@ -222,6 +225,7 @@ class App {
       this.redoStack = [];
       this.dirty = false;
       this.viewport.setLevel(lv);
+      await this.nav.setLevel(lv);
       this.tree.setLevel(lv);
       this.props.show([]);
       $('levelName').textContent = `${lv.name} — ${lv.dir}`;
@@ -261,6 +265,7 @@ class App {
     const s = this.sel;
     if (!s.length) return '';
     if (s.length > 1) return `${s.length} selected (${s.filter((t) => t.spawn).length} spawn points)`;
+    if (s[0].nav) return this.nav.describe(s[0]);
     const o = this.viewport.selectedObject();
     if (!o) return '';
     const p = o.position;
@@ -328,6 +333,7 @@ class App {
   }
 
   applyTransformSnap(target, snap) {
+    if (target.nav) { this.nav.applySnap(target, snap); return; }
     if (target.spawn) {
       target.spawn.args.splice(0, target.spawn.args.length, ...snap.spawn);
       const m = this.viewport.spawnObject(target.spawn);
@@ -398,6 +404,8 @@ class App {
   /** Ctrl+D: copies of everything selected, next to the originals (+2 m on X). */
   duplicateSelection() {
     if (!this.level || !this.sel.length) return;
+    const navIds = [...new Set(this.sel.filter((t) => t.nav).map((t) => t.nav))];
+    if (navIds.length) { this.viewport.select(this.nav.duplicateMarkers(navIds)); return; }
     const root = this.level.root;
     const nodeItems = [], spawnItems = [];
     for (const t of this.sel) {
@@ -422,6 +430,12 @@ class App {
 
   deleteSelection() {
     if (!this.level || !this.sel.length) return;
+    const navIds = [...new Set(this.sel.filter((t) => t.nav).map((t) => t.nav))];
+    if (navIds.length) {
+      this.nav.removeMarkers(navIds);
+      this.viewport.select(this.sel.filter((t) => !t.nav));
+      if (!this.sel.length) { this.status(`Deleted ${navIds.length} marker(s) (Ctrl+Z to undo)`); return; }
+    }
     const root = this.level.root;
     const nodes = this.sel.filter((t) => t.node && !this.isProtected(t.node)).map((t) => t.node)
       // deleting a parent already deletes its parts
@@ -489,6 +503,7 @@ class App {
     if (!lv || !this.sel.length) return;
     const items = [];
     for (const t of this.sel) {
+      if (t.nav) continue;
       if (t.spawn) {
         const a = t.spawn.args.map(Number);
         items.push({ kind: 'spawn', args: [...t.spawn.args], groundY: lv.heightAt(a[2], a[4]) });

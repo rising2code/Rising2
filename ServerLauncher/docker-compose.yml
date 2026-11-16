@@ -14,12 +14,21 @@ services:
       # Keep it on a Linux filesystem: a Windows folder mounted through
       # Docker Desktop is too slow for level loading.
       - /srv/rising2/Install_4:/game
+      # Shared ban list seed, read-only (copied into /game/bin at every start)
+      # - /srv/rising2/seed:/seed:ro
     environment:
       R2_NICK: MyServerNick          # server's own GameSpy account (not a player's)
       R2_PASS: change-me
       R2_PROFILE: Eiffel_server      # a [Profile] ProfileName from bin/DedicatedServer.ini
       # R2_RETRY_WAIT: 10            # seconds to wait after a failed step
       # R2_TIMEOUT: 600              # give up (container restarts) if not running by then
+      # Settings a profile can't hold (see docs/server_options.md):
+      # R2_PORT: 29024               # Game Port; needed for a 2nd server on the same IP
+      # R2_AFK_TIME: 300
+      # R2_ADMIN_PASS: change-me     # needed if the profile has Remote Game Admin = Enabled
+      # R2_ROTATION: "2"             # saved map rotation; overrides port/afk/rows
+      # R2_ROWS: "Time limit (minutes)=20;Maximum players (optional)=24"
+      # R2_SEED_BLACKLIST: /seed/serverblacklist.txt   # with the volume below
     # Extra launcher options, e.g. ["--retry-wait", "15"]
     command: []
     # Only if the host's /etc/hosts doesn't already send *.reagspy.com to the GameSpy server:

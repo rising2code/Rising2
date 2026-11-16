@@ -67,6 +67,33 @@ Run `r2launch` with no arguments (or `--help`) to print this list. An option win
 | `--retry-wait SEC` | `R2_RETRY_WAIT` | 10 | wait after any failed step, then redo it |
 | `--timeout SEC` | `R2_TIMEOUT` | 600 | kill the server if it isn't running by then (0 = never) |
 | `--start-delay MS` | `R2_START_DELAY` | 2000 | pause on the main dialog before Start |
+| `--port N` | `R2_PORT` | server's 29023 | Game Port, 29023–65000. Not saved by the server, so set it here for more than one server per IP |
+| `--afk-time SEC` | `R2_AFK_TIME` | server's 0 | AFK Time. Not saved by the server |
+| `--admin-pass PASS` | `R2_ADMIN_PASS` | | remote admin password. Required when the profile has Remote Game Admin = Enabled, or Start refuses |
+| `--rotation NAME` | `R2_ROTATION` | | load a saved map rotation (`[RoamingProfile]` in `DedicatedServer.ini`); the server only uses one after Load |
+| `--row NAME=VALUE` | `R2_ROWS` (`A=1;B=2`) | | set any settings-list row by its label or number; repeatable. Bypasses the window's own checks |
+| `--seed-blacklist FILE` | `R2_SEED_BLACKLIST` | | copy FILE over `bin/serverblacklist.txt` before the server starts |
+
+Everything a profile can hold should stay in the profile. These flags cover what it can't; see [docs/server_options.md](docs/server_options.md).
+What the server writes to disk and the registry (for cleanup jobs): [docs/server_files.md](docs/server_files.md).
+
+**Rotation overrides the settings list.** With `--rotation`, the server takes every setting (server name, port, time limit…) from the rotation's
+entries, so `--port`, `--afk-time` and `--row` have no effect, and the port is always 29023, even for entries built with "Add to list" from a different port.
+The launcher warns about this combination. To run two rotation servers on one host, give each its own IP.
+
+**Ban list.** The server rewrites `bin/serverblacklist.txt` as a whole every time it saves bans, and clears a read-only flag first. So don't share
+one live file between servers: give each server a seed with `--seed-blacklist`. Bans added while it runs stay in that server's copy and are
+replaced by the seed on the next start. Format:
+
+```
+[PLAYER]
+[PLAYER_NAME]SomeNick
+[BANNED_FOR]0
+[BANNED_TIME]1794700000
+[/PLAYER]
+```
+
+`BANNED_FOR` is in minutes, 0 = permanent. `BANNED_TIME` looks like a Unix time, but that's a guess from the file; it isn't verified.
 
 Other options: `--set ID=TEXT` (set another main-dialog control, repeatable), `--auto-ok` (press OK on message boxes; on in Docker),
 `--no-log`, `--attach PID`, `--dump`.

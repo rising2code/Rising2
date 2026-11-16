@@ -12,7 +12,11 @@
  *
  * Control IDs (from the exe's dialog resources, checked on the running server):
  *   login page (dialog 152): combo 1027 nickname (edit inside), edit 1028 password, button 2 "Login"
- *   main dialog (102):       combo 1016 profile, edit 1015 status log, button 1087 "Start", button 3 "Stop"
+ *   main dialog (102):       combo 1016 profile, edit 1015 status log, button 1087 "Start", button 3 "Stop",
+ *                            list view 1010 settings (28 rows, label | value)
+ *   roaming page (163):      combo 1027 rotation name, button 1110 "Load", list view 1109 rotation,
+ *                            edit 1002 rotation server name (all hidden; messages work anyway)
+ *   admin page (157):        edit 1096 admin password (hidden)
  *
  * Things learned the hard way:
  *   - WM_SETTEXT on the password edit does not stick (the field stays empty);
@@ -21,6 +25,13 @@
  *     real profile with --profile.
  *   - GetWindowText on another process's controls returns their creation
  *     caption, not the current text; read text with WM_GETTEXT instead.
+ *   - Start reads the settings rows' text (LVM_GETITEMTEXT), so writing a
+ *     row's text is enough. The LVITEM and buffer must live in the server's
+ *     memory (VirtualAllocEx). Selecting a profile rewrites all rows, so rows
+ *     are set after the profile, on every attempt.
+ *   - Game Port, AFK Time and the admin password are never saved by the
+ *     server; a saved map rotation is only used after "Load". See
+ *     docs/server_options.md.
  */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -28,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <commctrl.h>
 
 #define ID_LOGIN_NICK   1027
 #define ID_LOGIN_PASS   1028
@@ -36,8 +48,15 @@
 #define ID_STATUS_LOG   1015
 #define ID_START        1087
 #define ID_STOP         3
+#define ID_SETTINGS     1010
+#define ID_ROAM_NAME    1027
+#define ID_ROAM_LOAD    1110
+#define ID_ROAM_LIST    1109
+#define ID_ROAM_SERVER  1002
+#define ID_ADMIN_PASS   1096
 
 #define MAX_SET 16
+#define MAX_ROWS 32
 
 static struct {
     char exe[MAX_PATH];
@@ -48,6 +67,14 @@ static struct {
     int  set_id[MAX_SET];
     char set_text[MAX_SET][128];
     int  nset;
+    char row_name[MAX_ROWS][64];    /* settings-list rows to set: label (or index) */
+    char row_value[MAX_ROWS][256];
+    int  nrow;
+    int  port;          /* --port, 0 = leave the server's default (29023) */
+    int  afk_time;      /* --afk-time, -1 = leave the default (0) */
+    char admin_pass[128];
+    char rotation[128];
+    char seed_blacklist[MAX_PATH];
     int  timeout;       /* seconds to reach "running", 0 = forever */
     int  start_delay;   /* ms to wait on the main dialog before pressing Start */
     int  retry_wait;    /* seconds to wait after any failed step before trying it again */
@@ -59,6 +86,7 @@ static struct {
 } cfg;
 
 static DWORD g_pid;
+static HANDLE g_proc;   /* server process, with VM access for the list view calls */
 
 static void logmsg(const char *fmt, ...)
 {
@@ -274,6 +302,243 @@ static int check_length(HWND h, int want, const char *what)
     return 1;
 }
 
+/* ---- hidden controls, settings rows, rotation, admin -------------------- */
+
+/* A control of the server by ID and class, visible or not. The roaming and
+ * admin pages are hidden child dialogs, but they take messages all the same. */
+typedef struct { int id; const char *cls; HWND found; } FindAny;
+
+static BOOL CALLBACK find_any_child_cb(HWND h, LPARAM lp)
+{
+    FindAny *f = (FindAny *)lp;
+    char cls[64] = "";
+    if (GetDlgCtrlID(h) != f->id) return TRUE;
+    GetClassNameA(h, cls, sizeof cls);
+    if (lstrcmpiA(cls, f->cls)) return TRUE;
+    f->found = h;
+    return FALSE;
+}
+
+static BOOL CALLBACK find_any_top_cb(HWND top, LPARAM lp)
+{
+    DWORD pid = 0;
+    GetWindowThreadProcessId(top, &pid);
+    if (pid == g_pid) EnumChildWindows(top, find_any_child_cb, lp);
+    return ((FindAny *)lp)->found == NULL;
+}
+
+static HWND find_any(int id, const char *cls)
+{
+    FindAny f; f.id = id; f.cls = cls; f.found = NULL;
+    EnumWindows(find_any_top_cb, (LPARAM)&f);
+    return f.found;
+}
+
+/* List view text in the server process: the LVITEM and its buffer must be in
+ * the server's memory, so they go through one block allocated there. */
+static char *g_remote;   /* LVITEMA followed by a 1 KB text buffer, in the server */
+
+static int remote_ready(void)
+{
+    if (g_remote) return 1;
+    g_remote = VirtualAllocEx(g_proc, NULL, sizeof(LVITEMA) + 1024, MEM_COMMIT, PAGE_READWRITE);
+    if (!g_remote) logmsg("cannot allocate memory in the server process, error %lu", GetLastError());
+    return g_remote != NULL;
+}
+
+static int lv_get(HWND lv, int row, int col, char *out, int size)
+{
+    LVITEMA it;
+    SIZE_T n;
+    DWORD_PTR r = 0;
+    out[0] = 0;
+    if (!remote_ready()) return 0;
+    memset(&it, 0, sizeof it);
+    it.mask = LVIF_TEXT; it.iItem = row; it.iSubItem = col;
+    it.pszText = g_remote + sizeof(LVITEMA); it.cchTextMax = 1023;
+    if (!WriteProcessMemory(g_proc, g_remote, &it, sizeof it, &n)) return 0;
+    if (!SendMessageTimeoutA(lv, LVM_GETITEMTEXTA, row, (LPARAM)g_remote, SMTO_ABORTIFHUNG, 2000, &r)) return 0;
+    if (!ReadProcessMemory(g_proc, g_remote + sizeof(LVITEMA), out, size - 1, &n)) return 0;
+    out[size - 1] = 0;
+    return 1;
+}
+
+static int lv_set(HWND lv, int row, int col, const char *text)
+{
+    LVITEMA it;
+    SIZE_T n;
+    DWORD_PTR r = 0;
+    if (!remote_ready()) return 0;
+    memset(&it, 0, sizeof it);
+    it.iSubItem = col;
+    it.pszText = g_remote + sizeof(LVITEMA);
+    if (!WriteProcessMemory(g_proc, g_remote, &it, sizeof it, &n)) return 0;
+    if (!WriteProcessMemory(g_proc, g_remote + sizeof(LVITEMA), text, strlen(text) + 1, &n)) return 0;
+    return SendMessageTimeoutA(lv, LVM_SETITEMTEXTA, row, (LPARAM)g_remote, SMTO_ABORTIFHUNG, 2000, &r) && r;
+}
+
+/* Row labels look like "Game Port", "AFK Time (seconds):",
+ * "                     Minimum Skill:", "Maximum players (optional)".
+ * Compare without case, outer spaces, a trailing ':' or " (optional)". */
+static void norm_label(const char *in, char *out, int size)
+{
+    int n;
+    while (*in == ' ') in++;
+    snprintf(out, size, "%s", in);
+    CharLowerA(out);
+    for (;;) {
+        n = (int)strlen(out);
+        while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == ':')) out[--n] = 0;
+        if (n > 11 && !strcmp(out + n - 11, " (optional)")) { out[n - 11] = 0; continue; }
+        break;
+    }
+}
+
+static void list_rows(HWND lv)
+{
+    int i, n = (int)SendMessageA(lv, LVM_GETITEMCOUNT, 0, 0);
+    char label[256], value[256], *p;
+    for (i = 0; i < n; i++) {
+        lv_get(lv, i, 0, label, sizeof label);
+        lv_get(lv, i, 1, value, sizeof value);
+        for (p = label; *p == ' '; p++) ;
+        if (strchr(value, '\n')) strcpy(strchr(value, '\n'), " ...");
+        logmsg("  row %2d  %-50s = %s", i, p, value);
+    }
+}
+
+/* Row number for a label (or a plain row number). -1 if there is none. */
+static int find_row(HWND lv, const char *name)
+{
+    int i, n = (int)SendMessageA(lv, LVM_GETITEMCOUNT, 0, 0);
+    char want[256], label[256], got[256];
+    const char *d;
+    for (d = name; *d >= '0' && *d <= '9'; d++) ;
+    if (*name && !*d) { i = atoi(name); return i < n ? i : -1; }
+    norm_label(name, want, sizeof want);
+    for (i = 0; i < n; i++) {
+        lv_get(lv, i, 0, label, sizeof label);
+        norm_label(label, got, sizeof got);
+        if (!strcmp(got, want)) return i;
+    }
+    return -1;
+}
+
+/* Set every --row (and --port / --afk-time) and read each one back. */
+static int step_rows(void)
+{
+    static int listed;
+    HWND lv;
+    int i;
+    if (!cfg.nrow) return 1;
+    lv = find_ctl(ID_SETTINGS);
+    if (!check_exists(lv, "settings list (1010)")) return 0;
+    for (i = 0; i < cfg.nrow; i++) {
+        char got[1024];
+        int row = find_row(lv, cfg.row_name[i]);
+        if (row < 0) {
+            logmsg("check failed: no settings row '%s'%s", cfg.row_name[i], listed ? "" : "; the rows are:");
+            if (!listed) { list_rows(lv); listed = 1; }
+            return 0;
+        }
+        if (!lv_set(lv, row, 1, cfg.row_value[i])) { logmsg("check failed: could not write row %d '%s'", row, cfg.row_name[i]); return 0; }
+        lv_get(lv, row, 1, got, sizeof got);
+        if (strcmp(got, cfg.row_value[i])) {
+            logmsg("check failed: row %d '%s' is '%s' after setting it to '%s'", row, cfg.row_name[i], got, cfg.row_value[i]);
+            return 0;
+        }
+        logmsg("row %d '%s' set to '%s'", row, cfg.row_name[i], cfg.row_value[i]);
+    }
+    return 1;
+}
+
+/* Saved map rotation: pick its name on the (hidden) roaming page, press Load,
+ * and check the rotation list filled up and has a server name. */
+static int step_rotation(void)
+{
+    static int listed;
+    HWND load, page, name, list, server;
+    DWORD_PTR r = 0;
+    int rows;
+    char sname[256];
+    if (!cfg.rotation[0]) return 1;
+    load = find_any(ID_ROAM_LOAD, "Button");
+    if (!check_exists(load, "rotation Load button (1110)")) return 0;
+    page = GetParent(load);
+    name = GetDlgItem(page, ID_ROAM_NAME);
+    list = GetDlgItem(page, ID_ROAM_LIST);
+    server = GetDlgItem(page, ID_ROAM_SERVER);
+    if (!check_exists(name, "rotation name list (1027)") || !check_exists(list, "rotation list (1109)")) return 0;
+    if (!set_combo(name, cfg.rotation)) {
+        logmsg("check failed: rotation '%s' is not saved in DedicatedServer.ini%s", cfg.rotation, listed ? "" : "; saved rotations are:");
+        if (!listed) { list_combo(name); listed = 1; }
+        return 0;
+    }
+    if (!check_text(name, cfg.rotation, "rotation name")) return 0;
+    if (!IsWindowEnabled(load)) { logmsg("check failed: rotation Load button is disabled"); return 0; }
+    /* Synchronous, so the list can be checked right after; the timeout
+     * covers a message box popping up from Load. */
+    if (!SendMessageTimeoutA(load, BM_CLICK, 0, 0, SMTO_ABORTIFHUNG, 5000, &r)) {
+        logmsg("check failed: rotation Load did not return (a message box?)");
+        return 0;
+    }
+    Sleep(200);
+    rows = (int)SendMessageA(list, LVM_GETITEMCOUNT, 0, 0);
+    if (rows <= 0) { logmsg("check failed: rotation '%s' loaded no maps", cfg.rotation); return 0; }
+    sname[0] = 0;
+    if (server) text_of(server, sname, sizeof sname);
+    if (!sname[0]) { logmsg("check failed: rotation '%s' has no server name", cfg.rotation); return 0; }
+    logmsg("rotation '%s' loaded: %d map%s, server name '%s'", cfg.rotation, rows, rows == 1 ? "" : "s", sname);
+    return 1;
+}
+
+/* Admin password: typed into the (hidden) admin page. Start only checks that
+ * it is not empty, and only when Remote Game Admin is Enabled. */
+static int step_admin(void)
+{
+    HWND ed;
+    if (!cfg.admin_pass[0]) return 1;
+    ed = find_any(ID_ADMIN_PASS, "Edit");
+    if (!check_exists(ed, "admin password box (1096)")) return 0;
+    type_text(ed, cfg.admin_pass);
+    if (!check_length(ed, (int)strlen(cfg.admin_pass), "admin password")) return 0;
+    logmsg("admin password typed (%d chars)", (int)strlen(cfg.admin_pass));
+    return 1;
+}
+
+/* Ban list seed: the server rewrites bin/serverblacklist.txt as a whole, so a
+ * shared file can't be used live; copy a seed over it before the server
+ * starts. Format: [PLAYER] [PLAYER_NAME]x [BANNED_FOR]min [BANNED_TIME]t [/PLAYER] */
+static int seed_blacklist(const char *exe_dir)
+{
+    char dest[MAX_PATH], rel[MAX_PATH], *buf;
+    HANDLE f;
+    DWORD size, got = 0;
+    int players = 0;
+    char *p;
+    snprintf(rel, sizeof rel, "%s\\..\\serverblacklist.txt", exe_dir);
+    if (!GetFullPathNameA(rel, sizeof dest, dest, NULL)) snprintf(dest, sizeof dest, "%s", rel);
+
+    f = CreateFileA(cfg.seed_blacklist, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE) { logmsg("ban list seed not found: %s", cfg.seed_blacklist); return 0; }
+    size = GetFileSize(f, NULL);
+    buf = malloc(size + 1);
+    if (!buf || !ReadFile(f, buf, size, &got, NULL)) { CloseHandle(f); free(buf); logmsg("cannot read ban list seed %s", cfg.seed_blacklist); return 0; }
+    CloseHandle(f);
+    buf[got] = 0;
+    for (p = buf; (p = strstr(p, "[PLAYER]")); p += 8) players++;
+    if (got && !players) logmsg("warning: ban list seed has no [PLAYER] entries - is it in the server's format?");
+    free(buf);
+
+    SetFileAttributesA(dest, FILE_ATTRIBUTE_NORMAL);
+    if (!CopyFileA(cfg.seed_blacklist, dest, FALSE)) {
+        logmsg("cannot copy ban list seed to %s, error %lu", dest, GetLastError());
+        return 0;
+    }
+    logmsg("ban list seeded from %s: %d player%s -> %s", cfg.seed_blacklist, players, players == 1 ? "" : "s", dest);
+    return 1;
+}
+
 /* ---- steps -------------------------------------------------------------- */
 
 /* Login page: fill nickname and password, check both, press Login. */
@@ -319,6 +584,11 @@ static int step_start(HWND start)
     if (!check_text(prof, cfg.profile, "profile")) return 0;
     logmsg("profile '%s' selected", cfg.profile);
 
+    /* After the profile: selecting it rewrites every settings row. */
+    if (!step_rows()) return 0;
+    if (!step_admin()) return 0;
+    if (!step_rotation()) return 0;
+
     for (i = 0; i < cfg.nset; i++) {
         char what[64];
         HWND c = find_ctl(cfg.set_id[i]);
@@ -359,6 +629,22 @@ static void usage(void)
 "  --timeout SEC      R2_TIMEOUT      kill the server if not running by then     (default 600, 0 = never)\n"
 "  --start-delay MS   R2_START_DELAY  pause on the main dialog before Start      (default 2000)\n"
 "\n"
+"Server settings a profile can't hold (set after the profile, on every attempt):\n"
+"  --port N           R2_PORT         Game Port, 29023-65000 (server default 29023;\n"
+"                                     needed for more than one server per IP)\n"
+"  --afk-time SEC     R2_AFK_TIME     AFK Time in seconds (server default 0)\n"
+"  --admin-pass PASS  R2_ADMIN_PASS   remote admin password; Start refuses a profile with\n"
+"                                     Remote Game Admin = Enabled unless this is set\n"
+"  --rotation NAME    R2_ROTATION     load this saved map rotation ([RoamingProfile] in\n"
+"                                     DedicatedServer.ini) before Start\n"
+"  --row NAME=VALUE   R2_ROWS         set any row of the settings list, by its label as\n"
+"                                     shown (\"Game Port\", \"Time limit (minutes)\") or its\n"
+"                                     number; repeatable. R2_ROWS takes NAME=VALUE;NAME=VALUE.\n"
+"                                     Skips the window's own checks: prefer the profile.\n"
+"  --seed-blacklist F R2_SEED_BLACKLIST  copy file F over bin/serverblacklist.txt before\n"
+"                                     the server starts (the server rewrites that file\n"
+"                                     whole, so share a seed, not the live file)\n"
+"\n"
 "Other options:\n"
 "  --set ID=TEXT      also set main-dialog control ID (combo or edit) to TEXT; repeatable\n"
 "  --auto-ok          press OK on message boxes that pop up before the server runs\n"
@@ -369,8 +655,10 @@ static void usage(void)
 "What it does, each step checked before moving on:\n"
 "  login page:  type nickname + password, read both back (not empty, right value),\n"
 "               check Login exists and is enabled, press it\n"
-"  main dialog: select the profile, read it back, check Start exists and is enabled,\n"
-"               press it; done when Start greys out and Stop lights up\n"
+"  main dialog: select the profile and read it back; load the rotation and check it\n"
+"               has maps; set each row and read it back; type the admin password and\n"
+"               check its length; check Start exists and is enabled, press it;\n"
+"               done when Start greys out and Stop lights up\n"
 "  A failed check, a message box, or a press with no effect within --retry-wait\n"
 "  counts as a failure: wait --retry-wait seconds and redo the step.\n"
 "\n"
@@ -379,6 +667,22 @@ static void usage(void)
 }
 
 static void copy_opt(char *dst, size_t size, const char *src) { snprintf(dst, size, "%s", src); }
+
+/* NAME=VALUE for the settings list (the value may be empty). */
+static void add_row(const char *spec, const char *from)
+{
+    const char *eq = strchr(spec, '=');
+    int n;
+    if (!eq || eq == spec) { fprintf(stderr, "r2launch: bad %s '%s', expected NAME=VALUE\n", from, spec); exit(1); }
+    if (cfg.nrow >= MAX_ROWS) { fprintf(stderr, "r2launch: too many rows (max %d)\n", MAX_ROWS); exit(1); }
+    n = (int)(eq - spec);
+    if (n >= (int)sizeof cfg.row_name[0]) n = sizeof cfg.row_name[0] - 1;
+    memcpy(cfg.row_name[cfg.nrow], spec, n);
+    cfg.row_name[cfg.nrow][n] = 0;
+    while (n > 0 && cfg.row_name[cfg.nrow][n - 1] == ' ') cfg.row_name[cfg.nrow][--n] = 0;
+    copy_opt(cfg.row_value[cfg.nrow], sizeof cfg.row_value[0], eq + 1);
+    cfg.nrow++;
+}
 
 static int num_opt(const char *name, const char *v, int min)
 {
@@ -404,6 +708,7 @@ static void load_options(int argc, char **argv)
     cfg.start_delay = 2000;
     cfg.retry_wait = 10;
     cfg.echo_log = 1;
+    cfg.afk_time = -1;
 
     if ((p = getenv("R2_EXE")) && *p)         copy_opt(cfg.exe, sizeof cfg.exe, p);
     if ((p = getenv("R2_NICK")))              copy_opt(cfg.nick, sizeof cfg.nick, p);
@@ -412,6 +717,17 @@ static void load_options(int argc, char **argv)
     if ((p = getenv("R2_RETRY_WAIT")) && *p)  cfg.retry_wait  = num_opt("R2_RETRY_WAIT", p, 1);
     if ((p = getenv("R2_TIMEOUT")) && *p)     cfg.timeout     = num_opt("R2_TIMEOUT", p, 0);
     if ((p = getenv("R2_START_DELAY")) && *p) cfg.start_delay = num_opt("R2_START_DELAY", p, 0);
+    if ((p = getenv("R2_PORT")) && *p)        cfg.port        = num_opt("R2_PORT", p, 1);
+    if ((p = getenv("R2_AFK_TIME")) && *p)    cfg.afk_time    = num_opt("R2_AFK_TIME", p, 0);
+    if ((p = getenv("R2_ADMIN_PASS")))        copy_opt(cfg.admin_pass, sizeof cfg.admin_pass, p);
+    if ((p = getenv("R2_ROTATION")))          copy_opt(cfg.rotation, sizeof cfg.rotation, p);
+    if ((p = getenv("R2_SEED_BLACKLIST")))    copy_opt(cfg.seed_blacklist, sizeof cfg.seed_blacklist, p);
+    if ((p = getenv("R2_ROWS")) && *p) {
+        char rows[2048], *tok;
+        copy_opt(rows, sizeof rows, p);
+        for (tok = strtok(rows, ";"); tok; tok = strtok(NULL, ";"))
+            if (*tok) add_row(tok, "R2_ROWS entry");
+    }
 
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -436,6 +752,12 @@ static void load_options(int argc, char **argv)
         else if (!strcmp(a, "--retry-wait"))  cfg.retry_wait  = num_opt(a, argv[++i], 1);
         else if (!strcmp(a, "--timeout"))     cfg.timeout     = num_opt(a, argv[++i], 0);
         else if (!strcmp(a, "--start-delay")) cfg.start_delay = num_opt(a, argv[++i], 0);
+        else if (!strcmp(a, "--port"))        cfg.port        = num_opt(a, argv[++i], 1);
+        else if (!strcmp(a, "--afk-time"))    cfg.afk_time    = num_opt(a, argv[++i], 0);
+        else if (!strcmp(a, "--admin-pass"))  copy_opt(cfg.admin_pass, sizeof cfg.admin_pass, argv[++i]);
+        else if (!strcmp(a, "--rotation"))    copy_opt(cfg.rotation, sizeof cfg.rotation, argv[++i]);
+        else if (!strcmp(a, "--seed-blacklist")) copy_opt(cfg.seed_blacklist, sizeof cfg.seed_blacklist, argv[++i]);
+        else if (!strcmp(a, "--row"))         add_row(argv[++i], "--row");
         else if (!strcmp(a, "--set")) {
             const char *v = argv[++i];
             const char *eq = strchr(v, '=');
@@ -456,8 +778,17 @@ static void load_options(int argc, char **argv)
         else if (!lstrcmpiA(cfg.profile, "Default")) {
             fprintf(stderr, "r2launch: profile 'Default' has no server name and will not start; pick another\n"); bad = 1;
         }
+        if (cfg.port && (cfg.port < 29023 || cfg.port > 65000)) {
+            fprintf(stderr, "r2launch: port must be between 29023 and 65000 (the server's own limit), got %d\n", cfg.port); bad = 1;
+        }
+        if (cfg.seed_blacklist[0] && GetFileAttributesA(cfg.seed_blacklist) == INVALID_FILE_ATTRIBUTES) {
+            fprintf(stderr, "r2launch: ban list seed not found: %s\n", cfg.seed_blacklist); bad = 1;
+        }
         if (bad) { fprintf(stderr, "run 'r2launch --help' for all settings\n"); exit(1); }
     }
+    /* The dedicated flags are rows of the settings list, set like --row. */
+    if (cfg.port)          { char v[32]; snprintf(v, sizeof v, "Game Port=%d", cfg.port); add_row(v, "--port"); }
+    if (cfg.afk_time >= 0) { char v[48]; snprintf(v, sizeof v, "AFK Time (seconds)=%d", cfg.afk_time); add_row(v, "--afk-time"); }
     if (!cfg.attach && GetFileAttributesA(cfg.exe) == INVALID_FILE_ATTRIBUTES) {
         fprintf(stderr, "r2launch: server exe not found: %s (--exe or R2_EXE)\n", cfg.exe);
         exit(1);
@@ -499,15 +830,29 @@ int main(int argc, char **argv)
     if (!cfg.dump)
         logmsg("settings: nick='%s' password=%d chars profile='%s' retry-wait=%ds timeout=%ds start-delay=%dms",
                cfg.nick, (int)strlen(cfg.pass), cfg.profile, cfg.retry_wait, cfg.timeout, cfg.start_delay);
+    if (!cfg.dump) {
+        int i;
+        if (cfg.rotation[0])   logmsg("settings: rotation='%s'", cfg.rotation);
+        if (cfg.admin_pass[0]) logmsg("settings: admin password=%d chars", (int)strlen(cfg.admin_pass));
+        for (i = 0; i < cfg.nrow; i++) logmsg("settings: row '%s' = '%s'", cfg.row_name[i], cfg.row_value[i]);
+        /* Tested: with a rotation loaded, the game takes every setting from
+         * the rotation's own entries (server name, port 29023, ...), not
+         * from the settings list. */
+        if (cfg.rotation[0] && cfg.nrow)
+            logmsg("WARNING: with --rotation the server uses the rotation's own settings; "
+                   "--port, --afk-time and --row are set but have no effect (port stays 29023)");
+    }
 
     memset(&si, 0, sizeof si); si.cb = sizeof si;
     memset(&pi, 0, sizeof pi);
     if (cfg.attach) {
         pi.dwProcessId = cfg.attach;
-        pi.hProcess = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, FALSE, cfg.attach);
+        pi.hProcess = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE |
+                                  PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, cfg.attach);
         if (!pi.hProcess) { logmsg("cannot open pid %lu, error %lu", cfg.attach, GetLastError()); return 1; }
         logmsg("attached to pid %lu", cfg.attach);
     } else {
+        if (cfg.seed_blacklist[0] && !cfg.dump && !seed_blacklist(dir)) return 1;
         logmsg("starting %s (in %s)", cmd, dir);
         if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, dir, &si, &pi)) {
             logmsg("CreateProcess failed, error %lu", GetLastError());
@@ -515,6 +860,7 @@ int main(int argc, char **argv)
         }
     }
     g_pid = pi.dwProcessId;
+    g_proc = pi.hProcess;
     logmsg("server pid %lu", g_pid);
     t0 = GetTickCount();
 

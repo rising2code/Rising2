@@ -28,6 +28,11 @@ trap stop TERM INT
 # Wine path of the server exe (Z: is the Linux root)
 WIN_EXE="Z:$(echo "$GAME_DIR/$SERVER_EXE" | tr '/' '\\')"
 
+# A ban list seed given as a Linux path: hand it to r2launch as a Wine path.
+case "${R2_SEED_BLACKLIST:-}" in
+    /*) R2_SEED_BLACKLIST="Z:$(echo "$R2_SEED_BLACKLIST" | tr '/' '\\')"; export R2_SEED_BLACKLIST ;;
+esac
+
 wine /opt/r2launch/r2launch.exe --exe "$WIN_EXE" --auto-ok "$@" &
 LAUNCH_PID=$!
 wait "$LAUNCH_PID"

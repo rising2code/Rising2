@@ -10,7 +10,7 @@
 //   cloudflare.js Cloudflare: R2 (status, stop flag, rate limit, files), DNS, Turnstile
 import { webStart } from "./web.js";
 import { discordInteraction } from "./discord.js";
-import { addEvent, teardown } from "./server.js";
+import { addEvent, teardown, startVm, requestStop } from "./server.js";
 import { readStatus, stopRequested, setDns, r2File } from "./cloudflare.js";
 import { json } from "./util.js";
 
@@ -43,6 +43,16 @@ export default {
       }
       if (path === "/teardown" && req.method === "POST") {
         ctx.waitUntil(teardown(env, "VM asked for teardown"));
+        return json({ ok: true });
+      }
+      // Deploy test loop (Deploy/deploy.mjs): start / stop with the same checks as everyone
+      // (VM exists, budget), but no captcha and no cooldown. Token-only, like the VM's calls.
+      if (path === "/admin/start" && req.method === "POST") {
+        const res = await startVm(env, ctx, "Deploy test", null);
+        return json(res, res.ok ? 200 : res.error === "budget" ? 403 : res.error === "ovh" ? 502 : 409);
+      }
+      if (path === "/admin/stop" && req.method === "POST") {
+        await requestStop(env, "Deploy test");
         return json({ ok: true });
       }
       // R2 file access for the VM: server/* read-only (compose + .env), configs_sync/* read/write

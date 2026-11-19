@@ -1,0 +1,2 @@
+# The image copies nothing: keep deploy.env and out/ out of the build context.
+*

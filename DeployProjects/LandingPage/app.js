@@ -32,7 +32,7 @@ const T = {
     "why.ranks": "דרגות ומדליות", "why.ranks.d": "בדיוק כמו ב-2007, כל הפיצ'רים חזרו. הדרגה שלכם נשמרת.",
     "why.new": "חדש", "why.new.d": "בזכות כלי מודים חדשים יש לנו מפות ועונות חדשות. הישארו מעודכנים!",
     "gal.title": "גלריה",
-    "gal.intro": "הקדמה",
+    "gal.intro": "היכרות",
     "gal.arc": "שער הניצחון",
     "gal.china": "חזית סין", "gal.courtyard": "חצר תחת אש", "gal.hacking": "האקר קרב בפעולה",
     "gal.trooper": "לוחם עם שלד חיצוני", "gal.docks": "קרב בנמל", "gal.tactical": "מפה טקטית ופקודות",
@@ -126,6 +126,70 @@ $$("[data-discord]").forEach((a) => (a.href = CONFIG.discord));
 $$("[data-download]").forEach((a) => (a.href = CONFIG.download));
 window.onTurnstile = () => turnstile.render(".cf-turnstile", { sitekey: CONFIG.turnstileSiteKey, theme: "dark" });
 
+// ---- background: dim grid, with light beams shooting along grid lines edge to edge ----
+(() => {
+  const cv = $("#bg"), cx = cv.getContext("2d");
+  const G = 48;                          // grid cell, px
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let W, H, beams = [], last = performance.now(), nextSpawn = 0;
+
+  function size() {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function grid() {
+    cx.strokeStyle = "rgba(60,255,140,0.045)";
+    cx.lineWidth = 1;
+    cx.beginPath();
+    for (let x = 0.5; x < W; x += G) { cx.moveTo(x, 0); cx.lineTo(x, H); }
+    for (let y = 0.5; y < H; y += G) { cx.moveTo(0, y); cx.lineTo(W, y); }
+    cx.stroke();
+  }
+  function spawn() {
+    const horiz = Math.random() < 0.5;
+    const len = horiz ? W : H;
+    const lines = Math.floor((horiz ? H : W) / G);
+    beams.push({
+      horiz,
+      at: Math.floor(Math.random() * (lines + 1)) * G + 0.5,  // which grid line
+      dir: Math.random() < 0.5 ? 1 : -1,                    // from which edge
+      pos: 0, len,
+      speed: 500 + Math.random() * 700,                     // px/s
+      tail: 120 + Math.random() * 220,
+      hue: Math.random() < 0.8 ? "70,255,140" : "180,255,220", // hacker green, some pale mint
+    });
+  }
+  function draw(b) {
+    const head = b.dir > 0 ? b.pos : b.len - b.pos;
+    const tail = head - b.dir * b.tail;
+    const [x1, y1, x2, y2] = b.horiz ? [tail, b.at, head, b.at] : [b.at, tail, b.at, head];
+    const g = cx.createLinearGradient(x1, y1, x2, y2);
+    g.addColorStop(0, `rgba(${b.hue},0)`);
+    g.addColorStop(1, `rgba(${b.hue},0.75)`);
+    cx.strokeStyle = g;
+    cx.lineWidth = 1.5;
+    cx.beginPath(); cx.moveTo(x1, y1); cx.lineTo(x2, y2); cx.stroke();
+    cx.fillStyle = `rgba(${b.hue},0.9)`;
+    cx.shadowColor = `rgba(${b.hue},0.9)`; cx.shadowBlur = 10;
+    cx.beginPath(); cx.arc(x2, y2, 1.8, 0, Math.PI * 2); cx.fill();
+    cx.shadowBlur = 0;
+  }
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.05); last = now;
+    cx.clearRect(0, 0, W, H);
+    grid();
+    if (now > nextSpawn && beams.length < 7) { spawn(); nextSpawn = now + 250 + Math.random() * 900; }
+    beams = beams.filter((b) => (b.pos += b.speed * dt) < b.len + b.tail);
+    beams.forEach(draw);
+    requestAnimationFrame(frame);
+  }
+  addEventListener("resize", () => { size(); if (calm) grid(); });
+  size();
+  if (calm) grid(); else requestAnimationFrame(frame);
+})();
+
 // ---- gallery ----
 // YouTube: thumbnail first, the player loads only on click (youtube-nocookie).
 $$("[data-yt]").forEach((f) => {
@@ -153,33 +217,35 @@ const slides = [...track.children];
 const dots = $(".dots");
 slides.forEach(() => dots.append(document.createElement("i")));
 
-function current() {
-  const mid = track.getBoundingClientRect().left + track.clientWidth / 2;
-  let best = 0, dist = Infinity;
-  slides.forEach((s, i) => {
-    const r = s.getBoundingClientRect();
-    const d = Math.abs(r.left + r.width / 2 - mid);
-    if (d < dist) { dist = d; best = i; }
-  });
-  return best;
-}
+// The slide index comes from scrollLeft, not from on-screen rects: the PC is tilted in 3D, so
+// bounding rects are skewed and picked the wrong slide. In RTL scrollLeft runs 0 .. -max.
+let cur = 0;
+const rtl = () => getComputedStyle(track).direction === "rtl";
 function go(i) {
-  // Scroll only the track, by the on-screen distance to the slide's centre: works the same in
-  // LTR and RTL, and never moves the page (scrollIntoView would, while the gallery is off-screen).
-  const s = slides[(i + slides.length) % slides.length].getBoundingClientRect();
-  const tr = track.getBoundingClientRect();
-  track.scrollBy({ left: s.left + s.width / 2 - (tr.left + tr.width / 2), behavior: "smooth" });
+  cur = (i + slides.length) % slides.length;
+  // scroll only the track (never the page), one slide = the track's width
+  track.scrollTo({ left: (rtl() ? -1 : 1) * cur * track.clientWidth, behavior: "smooth" });
+  updateDots();
+  // the tower's HDD light flickers while the next picture "loads"
+  const hdd = $(".tower .hdd");
+  if (hdd) { hdd.classList.add("blink"); setTimeout(() => hdd.classList.remove("blink"), 120);
+    setTimeout(() => hdd.classList.add("blink"), 200); setTimeout(() => hdd.classList.remove("blink"), 380); }
 }
 function updateDots() {
-  const c = current();
-  [...dots.children].forEach((d, i) => d.classList.toggle("on", i === c));
+  [...dots.children].forEach((d, i) => d.classList.toggle("on", i === cur));
 }
 // "next" = forward in reading order (left-to-right in English, right-to-left in Hebrew); wraps around
-const step = (n) => go(current() + n);
+const step = (n) => go(cur + n);
 $(".slider .next").onclick = () => step(1);
 $(".slider .prev").onclick = () => step(-1);
 [...dots.children].forEach((d, i) => (d.onclick = () => go(i)));
-track.addEventListener("scroll", () => requestAnimationFrame(updateDots), { passive: true });
+// a swipe / scroll by hand: pick up the slide it settled on
+let settle;
+track.addEventListener("scroll", () => {
+  clearTimeout(settle);
+  settle = setTimeout(() => { cur = Math.round(Math.abs(track.scrollLeft) / track.clientWidth); updateDots(); }, 150);
+}, { passive: true });
+updateDots();
 track.addEventListener("keydown", (e) => {
   const fwd = lang === "he" ? "ArrowLeft" : "ArrowRight", back = lang === "he" ? "ArrowRight" : "ArrowLeft";
   if (e.key === fwd) { e.preventDefault(); step(1); }
@@ -196,7 +262,42 @@ gal.addEventListener("focusin", pause);
 gal.addEventListener("focusout", () => unpause());
 gal.addEventListener("touchstart", pause, { passive: true });
 gal.addEventListener("touchend", () => unpause(5000), { passive: true });
-setInterval(() => { if (!paused && !document.hidden) step(1); }, 2000);
+// The PC switches on (screen power-on effect, LEDs) the first time it scrolls into view;
+// the slideshow only runs while it's on screen.
+let pcVisible = false;
+const pc = $(".pc");
+new IntersectionObserver(([e]) => {
+  pcVisible = e.isIntersecting;
+  if (pcVisible) setTimeout(() => pc.classList.add("on"), 250);
+}, { threshold: 0.35 }).observe(pc);
+setInterval(() => { if (!paused && pcVisible && !document.hidden) step(1); }, 2000);
+
+// Click the left / right part of the screen to go back / forward. Needed in 3D: Chrome's hit-testing
+// on the tilted screen can give the click to the scrolling image strip instead of the arrow button.
+// So the listener sits on the whole PC and checks where the click landed on the screen's outline.
+const screenEl = $(".screen");
+$(".pc").addEventListener("click", (e) => {
+  if (e.target.closest(".nav, .dots")) return;
+  const r = screenEl.getBoundingClientRect();
+  const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+  if (fy < 0 || fy > 1 || fx < 0 || fx > 1 || (fx > 0.4 && fx < 0.6)) return;
+  const right = fx >= 0.6;
+  step(right === (lang !== "he") ? 1 : -1); // in Hebrew "next" is on the left
+});
+
+// The 3D desk faces you when the mouse is at its centre, and turns back to its resting angle
+// (--rx0/--ry0 in style.css: a few degrees, from above and the right) toward the edges / mouse out.
+if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  const scene = $(".scene");
+  pc.addEventListener("pointermove", (e) => {
+    const r = pc.getBoundingClientRect(), cs = getComputedStyle(scene);
+    const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+    const k = Math.min(1, Math.hypot(x, y) * 2);          // 0 at the centre, 1 at the edges
+    scene.style.setProperty("--rx", `${(parseFloat(cs.getPropertyValue("--rx0")) * k).toFixed(2)}deg`);
+    scene.style.setProperty("--ry", `${(parseFloat(cs.getPropertyValue("--ry0")) * k).toFixed(2)}deg`);
+  });
+  pc.addEventListener("pointerleave", () => { scene.style.removeProperty("--ry"); scene.style.removeProperty("--rx"); });
+}
 
 // ---- server status ----
 function renderStatus() {

@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rising2 · Rising Eagle Online</title>
   <meta name="description" content="Rising2 - fan community bringing Rising Eagle: Futuristic Infantry Warfare back online.">
-  <link rel="icon" href="assets/logo.png">
+  <link rel="icon" href="assets/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <canvas id="bg" aria-hidden="true"></canvas>
   <!-- Icons, used with <svg><use href="#i-..."/></svg> -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="i-discord" viewBox="0 0 24 24"><path fill="currentColor" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></symbol>
@@ -24,7 +25,7 @@
   </svg>
 
   <header class="top">
-    <a class="brand" href="#"><img src="assets/logo.png" alt="" width="36" height="36"><span>RISING2</span></a>
+    <a class="brand" href="#"><img src="assets/logo.png" alt="" width="57" height="32"><span>RISING2</span></a>
     <nav>
       <a href="#why" data-i18n="nav.why"></a>
       <a href="#gallery" data-i18n="nav.gallery"></a>
@@ -37,7 +38,7 @@
 
   <main>
     <!-- ================= Banner + server status ================= -->
-    <img class="hero-logo" src="assets/logo.png" alt="Rising2">
+    <div class="sun"><i class="corona" aria-hidden="true"></i><i class="corona b" aria-hidden="true"></i><img class="hero-logo" src="assets/logo.png" alt="Rising2"></div>
     <section class="hero">
       <div class="hero-text">
         <p class="kicker" data-i18n="hero.kicker"></p>
@@ -77,9 +78,10 @@
     </section>
 
     <!-- ================= Gallery =================
-         Column 1: intro + one video: <figure data-yt="YOUTUBE_ID"> - fill the id and the caption;
-                   an empty id shows a placeholder.
-         Column 2: image slider (auto-advances every 2 s): <figure><img ...><figcaption data-i18n=...></figure> -->
+         Row 1: intro + one video (half width): <figure data-yt="YOUTUBE_ID"> - fill the id and the caption;
+                an empty id shows a placeholder.
+         Row 2: image slider (auto-advances every 2 s) on the screen of a 2007-style desktop PC:
+                <figure><img ...><figcaption data-i18n=...></figure> -->
     <section id="gallery" class="block">
       <div class="gallery">
         <div class="gal-intro">
@@ -88,6 +90,14 @@
         </div>
         <div class="gal-images">
           <h2 data-i18n="gal.title"></h2>
+          <div class="pc" aria-label="Screenshots">
+            <div class="scene">
+            <div class="desk">
+              <div class="surface" aria-hidden="true"><div class="keyboard"><i class="keys"></i></div><div class="mouse"></div></div>
+              <div class="speaker" aria-hidden="true"><span class="lside"></span><i></i><i></i></div>
+              <div class="monitor">
+                <div class="bezel">
+                  <div class="screen">
           <div class="slider">
             <button class="nav prev" type="button" aria-label="Previous"><svg><use href="#i-prev"/></svg></button>
             <div class="track" tabindex="0">
@@ -102,7 +112,27 @@
             </div>
             <button class="nav next" type="button" aria-label="Next"><svg><use href="#i-prev"/></svg></button>
           </div>
-          <div class="dots" aria-hidden="true"></div>
+                    <div class="crt" aria-hidden="true"></div>
+                    <div class="dots" aria-hidden="true"></div>
+                  </div>
+                  <div class="chin" aria-hidden="true"><span class="badge">RISING2</span><span class="btns"><i></i><i></i><i></i><b class="power"></b></span></div>
+                </div>
+                <div class="neck" aria-hidden="true"></div>
+                <div class="foot" aria-hidden="true"></div>
+              </div>
+              <div class="speaker" aria-hidden="true"><span class="lside"></span><i></i><i></i></div>
+              <div class="tower" aria-hidden="true">
+                <span class="lside"></span>
+                <span class="leds"><b class="pwr"></b><b class="hdd"></b></span>
+                <span class="bay"></span>
+                <span class="bay drive"><span class="tray"><i class="bed"></i><b class="eject"></b></span></span>
+                <span class="floppy"></span>
+                <span class="vents"></span>
+                <span class="badge">R2</span>
+              </div>
+            </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

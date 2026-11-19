@@ -1,7 +1,17 @@
 # Rising2 CF-Worker
 
-One file, [src/worker.js](src/worker.js), no npm packages. Bundles `../LazyServer/cloud_init.sh`
-as the VM's userData.
+No npm packages; Wrangler bundles the ES modules in `src/` into one worker, with
+`../LazyServer/cloud_init.sh` as the VM's userData.
+
+| File | What |
+|---|---|
+| [src/worker.js](src/worker.js) | entry: every inbound call (the API list below) and the token check |
+| [src/web.js](src/web.js) | website: the Start button (Turnstile) |
+| [src/discord.js](src/discord.js) | Discord: slash commands, webhook posts |
+| [src/server.js](src/server.js) | VM life cycle: start checks, stop, teardown, status log |
+| [src/ovh.js](src/ovh.js) | OVH API: signed requests, instances, this month's cost |
+| [src/cloudflare.js](src/cloudflare.js) | R2 (status, stop flag, rate limit, VM files), DNS, Turnstile |
+| [src/util.js](src/util.js) | small shared helpers |
 
 ## Endpoints (`https://rising2.net/api/...`)
 

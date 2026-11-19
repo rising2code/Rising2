@@ -9,7 +9,7 @@ the VM exists only while people are playing.
 | [CF-Worker](CF-Worker/) | Cloudflare Worker + R2 | `rising2.net/api/*`: start/stop the OVH VM, status log, DNS, Discord commands, R2 access for the VM |
 | [LazyServer](LazyServer/) | OVH Public Cloud VM | `cloud_init.sh` userData + `docker-compose.yml`: GameSpy mock + official + fun dedicated servers |
 
-No frameworks and no npm packages: plain HTML/JS, one worker file, one bash script
+No frameworks and no npm packages: plain HTML/JS, a few small worker modules, one bash script
 (`wrangler` is only used through `npx` to deploy).
 
 ## Flow

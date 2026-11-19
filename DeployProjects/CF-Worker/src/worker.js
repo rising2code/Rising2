@@ -1,11 +1,18 @@
 // Rising2 control worker: starts/stops the lazy OVH game VM, keeps its status in R2,
 // points ip.rising2.net at it, and answers the Discord /start /stop /status commands.
-// No dependencies: fetch, WebCrypto and the R2 binding only.
-import CLOUD_INIT from "../../LazyServer/cloud_init.sh";
-
-const STATUS_KEY = "functions/vm_status.txt"; // {state, updated, log: [last 10 {t, msg}]}
-const STOP_KEY = "functions/stop_request";    // present = the VM should sync and tear itself down
-const LOG_KEEP = 10;
+// No dependencies: fetch, WebCrypto and the R2 binding only. Wrangler bundles the modules.
+//
+// This file is the list of every inbound call (the whole API); the work is done in:
+//   web.js        website: Start button (Turnstile)
+//   discord.js    Discord: slash commands + webhook posts
+//   server.js     the VM's life cycle: start checks, stop, teardown, status log
+//   ovh.js        OVH API: signed requests, instances, this month's cost
+//   cloudflare.js Cloudflare: R2 (status, stop flag, rate limit, files), DNS, Turnstile
+import { webStart } from "./web.js";
+import { discordInteraction } from "./discord.js";
+import { addEvent, teardown } from "./server.js";
+import { readStatus, stopRequested, setDns, r2File } from "./cloudflare.js";
+import { json } from "./util.js";
 
 export default {
   async fetch(req, env, ctx) {
@@ -17,7 +24,7 @@ export default {
       // ---- public ----
       if (path === "/status" && req.method === "GET") return cors(json(await readStatus(env)));
       if (path === "/start" && req.method === "POST") return cors(await webStart(req, env, ctx));
-      if (path === "/discord" && req.method === "POST") return await discord(req, env, ctx);
+      if (path === "/discord" && req.method === "POST") return await discordInteraction(req, env, ctx);
 
       // ---- VM only (shared token) ----
       if (!authed(req, env)) return json({ error: "unauthorized" }, 401);
@@ -32,7 +39,7 @@ export default {
         return json({ ok: true, ip });
       }
       if (path === "/should-stop" && req.method === "GET") {
-        return json({ stop: !!(await env.R2.head(STOP_KEY)) });
+        return json({ stop: await stopRequested(env) });
       }
       if (path === "/teardown" && req.method === "POST") {
         ctx.waitUntil(teardown(env, "VM asked for teardown"));
@@ -50,291 +57,7 @@ export default {
   },
 };
 
-// ------------------------------------------------------------------ web start (Turnstile)
-
-async function webStart(req, env, ctx) {
-  const form = await req.formData().catch(() => null);
-  const token = form?.get("cf-turnstile-response");
-  const ip = req.headers.get("CF-Connecting-IP") || "unknown";
-  if (!token || !(await turnstileOk(env, token, ip))) return json({ error: "captcha" }, 403);
-
-  const res = await startVm(env, ctx, "Website", `ip_${ip}`);
-  if (res.error === "cooldown") return json(res, 429);
-  if (res.error === "budget") return json(res, 403);
-  return json(res, res.ok ? 200 : res.error === "ovh" ? 502 : 409);
-}
-
-async function turnstileOk(env, token, ip) {
-  const body = new FormData();
-  body.append("secret", env.TURNSTILE_SECRET);
-  body.append("response", token);
-  body.append("remoteip", ip);
-  const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body });
-  return (await r.json()).success === true;
-}
-
-// Rate limit: ratelimit/<who> holds the time of the last try. An R2 lifecycle rule deletes
-// these after a day, so the folder never grows (see README).
-async function cooldown(env, who) {
-  const key = `ratelimit/${who.replace(/[^\w.:-]/g, "_")}`;
-  const hours = Number(env.START_COOLDOWN_HOURS || 20);
-  const obj = await env.R2.get(key);
-  if (obj) {
-    const left = hours - (Date.now() - Number(await obj.text())) / 3600e3;
-    if (left > 0) return Math.ceil(left);
-  }
-  await env.R2.put(key, String(Date.now()));
-  return 0;
-}
-
-// ------------------------------------------------------------------ VM life cycle
-
-// Order matters: the "already running" checks come before the cooldown, so pressing Start
-// while the server is up doesn't use up the visitor's one start for the day.
-// cooldownKey = null skips the cooldown (Discord admins).
-const STARTING_GRACE_MS = 15 * 60e3; // a "starting" state younger than this blocks a new start
-
-async function startVm(env, ctx, by, cooldownKey) {
-  // 1. Any VM at all in the OVH project (any name, any region) -> no new one. Fails closed:
-  //    if OVH can't be asked, nothing is created.
-  let vms;
-  try {
-    vms = await listInstances(env);
-  } catch (e) {
-    return { ok: false, error: "ovh", message: "can't check for a running VM, try again later" };
-  }
-  const st = await readStatus(env);
-  if (vms.length) {
-    return { ok: false, error: "already running", message: `a VM already exists (${vms.map((v) => `${v.name}: ${v.status}`).join(", ")})`, state: st.state };
-  }
-  // 2. A start in the last minutes whose VM OVH doesn't list yet (double click, two people at once).
-  if (st.state === "starting" && Date.now() - st.updated < STARTING_GRACE_MS) {
-    return { ok: false, error: "already running", message: "a start is already in progress", state: st.state };
-  }
-  // 3. The month's OVH bill: over either limit -> no start, for anyone (admins too).
-  let cost;
-  try {
-    cost = await monthCost(env);
-  } catch (e) {
-    return { ok: false, error: "ovh", message: "can't read this month's cost, try again later" };
-  }
-  const maxNow = Number(env.MAX_COST_CURRENT), maxFc = Number(env.MAX_COST_FORECAST);
-  if ((maxNow && cost.current >= maxNow) || (maxFc && cost.forecast >= maxFc)) {
-    await discordPost(env, `Start refused: this month's budget is used up (${fmtCost(cost)}).`);
-    return { ok: false, error: "budget", message: "this month's server budget is used up" };
-  }
-  // 4. Only now count it against the caller's daily start.
-  if (cooldownKey) {
-    const wait = await cooldown(env, cooldownKey);
-    if (wait) return { ok: false, error: "cooldown", retryAfterHours: wait };
-  }
-
-  await env.R2.delete(STOP_KEY);
-  await addEvent(env, `Start requested (${by})`, "starting");
-  ctx.waitUntil(createInstance(env).catch((e) => addEvent(env, `Start failed: ${e.message}`, "off")));
-  return { ok: true, state: "starting" };
-}
-
-async function createInstance(env) {
-  const region = env.OVH_REGION;
-  const [flavors, images] = await Promise.all([
-    ovh(env, "GET", `/cloud/project/${env.OVH_PROJECT}/flavor?region=${region}`),
-    ovh(env, "GET", `/cloud/project/${env.OVH_PROJECT}/image?region=${region}&osType=linux`),
-  ]);
-  const image = images.find((i) => i.name === env.OVH_IMAGE);
-  if (!image) throw new Error(`image ${env.OVH_IMAGE} not found in ${region}`);
-
-  const userData = CLOUD_INIT
-    .replaceAll("__WORKER_URL__", `${env.PUBLIC_URL}/api`)
-    .replaceAll("__TOKEN__", env.SHARED_TOKEN)
-    .replaceAll("__GAME_ZIP_URL__", env.GAME_ZIP_URL);
-
-  let lastErr;
-  for (const name of env.OVH_FLAVORS.split(",").map((s) => s.trim())) {
-    const flavor = flavors.find((f) => f.name === name);
-    if (!flavor) continue;
-    try {
-      await ovh(env, "POST", `/cloud/project/${env.OVH_PROJECT}/instance`, {
-        name: env.VM_NAME, region, flavorId: flavor.id, imageId: image.id, userData, monthlyBilling: false,
-      });
-      await addEvent(env, `VM created (${name}), booting...`, "starting");
-      return;
-    } catch (e) {
-      lastErr = e;
-      await addEvent(env, `Flavor ${name} failed: ${e.message.slice(0, 120)}`);
-    }
-  }
-  throw lastErr || new Error("no flavor available");
-}
-
-// Every instance in the project, all regions (no ?region= filter).
-async function listInstances(env) {
-  return ovh(env, "GET", `/cloud/project/${env.OVH_PROJECT}/instance`);
-}
-
-// Our game VM (by name), for teardown.
-async function findInstance(env) {
-  return (await listInstances(env)).find((i) => i.name === env.VM_NAME) || null;
-}
-
-// Graceful: the VM sees the flag within a minute, syncs to R2, then calls /teardown.
-async function requestStop(env, why) {
-  await env.R2.put(STOP_KEY, why);
-  await addEvent(env, `${why}: stopping after a final sync...`, "stopping");
-}
-
-// Called by the VM after its final sync: delete it and park the DNS name.
-async function teardown(env, why) {
-  const inst = await findInstance(env);
-  if (inst) await ovh(env, "DELETE", `/cloud/project/${env.OVH_PROJECT}/instance/${inst.id}`);
-  await env.R2.delete(STOP_KEY);
-  await setDns(env, "127.0.0.1").catch(() => {}); // don't leave the name on an IP someone else may get
-  await addEvent(env, `${why}: VM deleted`, "off");
-  // tell the community what running it costs (Discord only, not the public status log)
-  const cost = await monthCost(env).catch(() => null);
-  if (cost) await discordPost(env, `This month's server cost so far: ${fmtCost(cost)}. Thanks for keeping it fan-funded!`);
-}
-
-// ------------------------------------------------------------------ cost (OVH Public Cloud usage)
-
-// This month's bill for the whole project: VMs, Object Storage (the Game.zip bucket), traffic,
-// volumes... OVH adds usage up hourly, so the last hour or two may not be in yet.
-async function monthCost(env) {
-  const base = `/cloud/project/${env.OVH_PROJECT}/usage`;
-  const [cur, fc] = await Promise.all([ovh(env, "GET", `${base}/current`), ovh(env, "GET", `${base}/forecast`)]);
-  return { current: sumPrices(cur), forecast: sumPrices(fc) };
-}
-
-// Adds up every "totalPrice" in OVH's usage tree. Once an item has a totalPrice its children
-// (per-instance details, stored/bandwidth parts) are already in it, so we don't go deeper.
-function sumPrices(node) {
-  if (Array.isArray(node)) return node.reduce((a, n) => a + sumPrices(n), 0);
-  if (!node || typeof node !== "object") return 0;
-  if (typeof node.totalPrice === "number") return node.totalPrice;
-  if (node.totalPrice && typeof node.totalPrice.value === "number") return node.totalPrice.value;
-  return Object.values(node).reduce((a, n) => a + sumPrices(n), 0);
-}
-
-const fmtCost = (c) => `€${c.current.toFixed(2)} (forecast for the month €${c.forecast.toFixed(2)})`;
-
-// ------------------------------------------------------------------ status log
-
-async function readStatus(env) {
-  const obj = await env.R2.get(STATUS_KEY);
-  return obj ? JSON.parse(await obj.text()) : { state: "off", updated: 0, log: [] };
-}
-
-async function addEvent(env, msg, state) {
-  const st = await readStatus(env);
-  if (state) st.state = state;
-  st.updated = Date.now();
-  if (msg) st.log = [...st.log, { t: st.updated, msg }].slice(-LOG_KEEP);
-  await env.R2.put(STATUS_KEY, JSON.stringify(st));
-  if (msg) await discordPost(env, `\`[${st.state}]\` ${msg}`);
-}
-
-async function discordPost(env, content) {
-  if (!env.DISCORD_WEBHOOK_URL) return;
-  await fetch(env.DISCORD_WEBHOOK_URL, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
-  }).catch(() => {});
-}
-
-// ------------------------------------------------------------------ R2 files for the VM
-
-async function r2File(req, env, key, writable) {
-  if (req.method === "GET") {
-    const obj = await env.R2.get(key);
-    return obj ? new Response(obj.body) : json({ error: "not found" }, 404);
-  }
-  if (req.method === "PUT" && writable) {
-    // keep the previous copy, so one bad upload can't wipe the stats
-    const old = await env.R2.get(key);
-    if (old) await env.R2.put(`${key}.prev`, old.body);
-    await env.R2.put(key, req.body);
-    return json({ ok: true });
-  }
-  return json({ error: "method not allowed" }, 405);
-}
-
-// ------------------------------------------------------------------ Cloudflare DNS
-
-async function setDns(env, ip) {
-  const api = `https://api.cloudflare.com/client/v4/zones/${env.CF_ZONE_ID}/dns_records`;
-  const h = { authorization: `Bearer ${env.CF_API_TOKEN}`, "content-type": "application/json" };
-  const found = await (await fetch(`${api}?type=A&name=${env.DNS_NAME}`, { headers: h })).json();
-  const rec = { type: "A", name: env.DNS_NAME, content: ip, ttl: Number(env.DNS_TTL), proxied: false };
-  const id = found.result?.[0]?.id;
-  const r = await fetch(id ? `${api}/${id}` : api, { method: id ? "PUT" : "POST", headers: h, body: JSON.stringify(rec) });
-  if (!r.ok) throw new Error(`DNS update failed: ${r.status} ${await r.text()}`);
-}
-
-// ------------------------------------------------------------------ OVH API (signed requests)
-
-async function ovh(env, method, path, body) {
-  const url = env.OVH_ENDPOINT + path;
-  const data = body ? JSON.stringify(body) : "";
-  const now = Math.floor(Date.now() / 1000);
-  const toSign = [env.OVH_APP_SECRET, env.OVH_CONSUMER_KEY, method, url, data, now].join("+");
-  const sig = "$1$" + hex(await crypto.subtle.digest("SHA-1", new TextEncoder().encode(toSign)));
-  const r = await fetch(url, {
-    method, body: data || undefined,
-    headers: {
-      "content-type": "application/json",
-      "X-Ovh-Application": env.OVH_APP_KEY,
-      "X-Ovh-Consumer": env.OVH_CONSUMER_KEY,
-      "X-Ovh-Timestamp": String(now),
-      "X-Ovh-Signature": sig,
-    },
-  });
-  const text = await r.text();
-  if (!r.ok) throw new Error(`OVH ${method} ${path}: ${r.status} ${text}`);
-  return text ? JSON.parse(text) : null;
-}
-
-// ------------------------------------------------------------------ Discord interactions
-
-async function discord(req, env, ctx) {
-  const body = await req.text();
-  if (!(await discordSigOk(env, req, body))) return new Response("bad signature", { status: 401 });
-  const it = JSON.parse(body);
-  if (it.type === 1) return json({ type: 1 }); // PING
-
-  const user = it.member?.user || it.user || {};
-  const isAdmin = !!env.DISCORD_ADMIN_ROLE && (it.member?.roles || []).includes(env.DISCORD_ADMIN_ROLE);
-  const reply = (content) => json({ type: 4, data: { content, flags: 64 } }); // 64 = only the caller sees it
-
-  switch (it.data?.name) {
-    case "status": {
-      const st = await readStatus(env);
-      const log = st.log.map((l) => `<t:${Math.floor(l.t / 1000)}:t> ${l.msg}`).join("\n");
-      return reply(`**State:** ${st.state}\n${log || "(no events yet)"}`);
-    }
-    case "start": {
-      const res = await startVm(env, ctx, `Discord: ${user.username}`, isAdmin ? null : `discord_${user.id}`);
-      if (res.error === "cooldown") return reply(`You already used Start today. Try again in ~${res.retryAfterHours}h.`);
-      return reply(res.ok ? "Starting the server... follow with `/status`." : `Not started: ${res.message || res.error}.`);
-    }
-    case "stop": {
-      if (!isAdmin) return reply("Only admins can stop the server.");
-      await requestStop(env, `Stop by ${user.username}`);
-      return reply("The server will sync and shut down within a minute or two.");
-    }
-  }
-  return reply("Unknown command.");
-}
-
-async function discordSigOk(env, req, body) {
-  const sig = req.headers.get("X-Signature-Ed25519");
-  const ts = req.headers.get("X-Signature-Timestamp");
-  if (!sig || !ts) return false;
-  const key = await crypto.subtle.importKey("raw", unhex(env.DISCORD_PUBLIC_KEY), { name: "Ed25519" }, false, ["verify"]);
-  return crypto.subtle.verify("Ed25519", key, unhex(sig), new TextEncoder().encode(ts + body));
-}
-
-// ------------------------------------------------------------------ helpers
-
+// Bearer SHARED_TOKEN, compared in constant time.
 function authed(req, env) {
   const got = req.headers.get("authorization") || "";
   const want = `Bearer ${env.SHARED_TOKEN}`;
@@ -344,14 +67,8 @@ function authed(req, env) {
   return diff === 0;
 }
 
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
-
 function cors(res) {
   res.headers.set("access-control-allow-origin", "*");
   res.headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
   return res;
 }
-
-const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-const unhex = (s) => new Uint8Array(s.match(/../g).map((h) => parseInt(h, 16)));

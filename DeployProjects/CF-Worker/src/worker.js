@@ -48,13 +48,6 @@ export default {
       return cors(json({ error: String(e.message || e) }, 500));
     }
   },
-
-  // Daily safety net (see wrangler.toml): the VM's own timer should have stopped it already.
-  async scheduled(_ev, env, ctx) {
-    ctx.waitUntil((async () => {
-      if (await findInstance(env)) await requestStop(env, "Daily 05:00 shutdown (safety net)");
-    })());
-  },
 };
 
 // ------------------------------------------------------------------ web start (Turnstile)
@@ -150,7 +143,7 @@ async function requestStop(env, why) {
   await addEvent(env, `${why}: stopping after a final sync...`, "stopping");
 }
 
-// Hard: delete the VM now (anything not synced yet is lost).
+// Called by the VM after its final sync: delete it and park the DNS name.
 async function teardown(env, why) {
   const inst = await findInstance(env);
   if (inst) await ovh(env, "DELETE", `/cloud/project/${env.OVH_PROJECT}/instance/${inst.id}`);
@@ -242,7 +235,6 @@ async function discord(req, env, ctx) {
 
   const user = it.member?.user || it.user || {};
   const isAdmin = !!env.DISCORD_ADMIN_ROLE && (it.member?.roles || []).includes(env.DISCORD_ADMIN_ROLE);
-  const opt = (n) => it.data.options?.find((o) => o.name === n)?.value;
   const reply = (content) => json({ type: 4, data: { content, flags: 64 } }); // 64 = only the caller sees it
 
   switch (it.data?.name) {
@@ -261,10 +253,6 @@ async function discord(req, env, ctx) {
     }
     case "stop": {
       if (!isAdmin) return reply("Only admins can stop the server.");
-      if (opt("force")) {
-        ctx.waitUntil(teardown(env, `Force stop by ${user.username}`));
-        return reply("Deleting the VM now (no final sync).");
-      }
       await requestStop(env, `Stop by ${user.username}`);
       return reply("The server will sync and shut down within a minute or two.");
     }

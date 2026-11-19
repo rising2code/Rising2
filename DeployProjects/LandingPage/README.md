@@ -1,14 +1,23 @@
 # Rising2 LandingPage
 
-Static page for Cloudflare Pages: `index.html`, `style.css`, `app.js`, `assets/logo.png`.
+Static page for Cloudflare Pages: `index.html`, `style.css`, `app.js`, `assets/`.
 No build step. Hebrew by default, English with the toggle (remembered per browser).
 
-* Banner, game info (setting, platoon positions, ranks/medals - from the game guide), how to join.
-* Live server status from `GET /api/status` (refreshes every 8 s while starting/stopping, else every minute).
-* When the server is off: Cloudflare Turnstile + **Start** -> `POST /api/start` (once a day per IP).
+Sections: banner with **Direct download** + Discord, live server status, "why Rising2"
+(direct download, open source, free, play now), gallery, how to join (3 steps), about.
 
-Before deploying, set `CONFIG` at the top of [app.js](app.js): the Discord invite and the
-Turnstile site key (the default is Cloudflare's always-pass test key).
+* Live server status from `GET /api/status` (refreshes every 8 s while starting/stopping, else every minute).
+* When the server is asleep: Cloudflare Turnstile + **Wake the server** -> `POST /api/start` (once a day per IP).
+
+## To fill in
+
+* `CONFIG` at the top of [app.js](app.js): Discord invite, download link, Turnstile site key
+  (the default is Cloudflare's always-pass test key).
+* Gallery videos in [index.html](index.html): `<figure data-yt="YOUTUBE_ID">` and its
+  `<figcaption>`. An empty id shows a "video coming soon" slide; the player loads only on click
+  (youtube-nocookie).
+* More images: drop a JPG (16:9 looks best) in `assets/gallery/` and add a `<figure>`.
+  The current ones come from the game guide PDF, the menu art and an in-game screenshot.
 
 ```powershell
 npx wrangler pages deploy . --project-name rising2

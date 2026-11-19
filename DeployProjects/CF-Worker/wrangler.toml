@@ -15,11 +15,6 @@ rules = [{ type = "Text", globs = ["**/*.sh"], fallthrough = true }]
 binding = "R2"
 bucket_name = "rising2"
 
-# Safety net: tear the VM down after 05:00 Israel time even if the VM's own timer died.
-# 03:15 UTC = 05:15 (winter) / 06:15 (summer) in Israel.
-[triggers]
-crons = ["15 3 * * *"]
-
 [vars]
 PUBLIC_URL = "https://rising2.net"   # the VM reaches this worker at PUBLIC_URL/api
 DNS_NAME = "ip.rising2.net"

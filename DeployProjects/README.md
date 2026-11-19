@@ -30,7 +30,7 @@ VM (cloud_init.sh) ───────┴─> /api/event, /api/dns, /api/r2/*,
 3. **Every minute** (systemd timer): stop requested? Every 15 min: sync SQLite/config to R2,
    and tear down if 0 players twice in a row, or if it's 05:xx Israel time.
 4. **Teardown**: stop containers, final sync, call the worker, which deletes the VM and points
-   `ip.rising2.net` back at `127.0.0.1`. The worker's daily cron is a safety net.
+   `ip.rising2.net` back at `127.0.0.1`.
 
 ## Cloudflare setup
 

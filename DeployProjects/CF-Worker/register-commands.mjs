@@ -7,10 +7,7 @@ if (!app || !token) throw new Error("set DISCORD_APP_ID and DISCORD_BOT_TOKEN");
 const commands = [
   { name: "start", description: "Start the Rising2 game server (once a day per player)" },
   { name: "status", description: "Show the game server state and its last events" },
-  {
-    name: "stop", description: "Stop the game server (admins)",
-    options: [{ name: "force", description: "Delete the VM now, skip the final sync", type: 5 }],
-  },
+  { name: "stop", description: "Save and stop the game server (admins)" },
 ];
 
 const url = guild

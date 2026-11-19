@@ -9,7 +9,7 @@ as the VM's userData.
 |---|---|---|
 | `GET /status` | public | `{state, updated, log[10]}`; state = `off` `starting` `up` `stopping` `error` |
 | `POST /start` | public, Turnstile | form with `cf-turnstile-response`; once per IP per `START_COOLDOWN_HOURS` |
-| `POST /discord` | Discord | interactions endpoint: `/start` `/status` `/stop [force]` |
+| `POST /discord` | Discord | interactions endpoint: `/start` `/status` `/stop` |
 | `POST /event` | VM (token) | `{msg, state?}` -> status log (+ Discord webhook if set) |
 | `POST /dns` | VM (token) | `ip.rising2.net` -> the caller's IP; returns `{ip}` |
 | `GET /should-stop` | VM (token) | `{stop: bool}`, polled every minute |
@@ -18,8 +18,7 @@ as the VM's userData.
 | `GET,PUT /r2/configs_sync/<f>` | VM (token) | saved state (PUT keeps one `.prev`) |
 
 Discord: `/start` has the same daily cooldown per user; members with `DISCORD_ADMIN_ROLE`
-skip it and may `/stop`. `/stop` asks the VM to sync and shut down (within ~1 min);
-`/stop force:true` deletes the VM at once.
+skip it and may `/stop`, which asks the VM to sync and shut down (within ~1 min).
 
 ## Deploy
 

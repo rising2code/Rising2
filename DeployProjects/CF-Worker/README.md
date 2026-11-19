@@ -26,7 +26,7 @@ No npm packages; Wrangler bundles the ES modules in `src/` into one worker, with
 | `POST /teardown` | VM (token) | delete the VM, DNS -> 127.0.0.1 |
 | `GET /r2/server/<f>` | VM (token) | compose file / `.env` |
 | `GET,PUT /r2/configs_sync/<f>` | VM (token) | saved state (PUT keeps one `.prev`) |
-| `POST /admin/start`, `/admin/stop` | token | the [Deploy](../Deploy/) test loop: start / graceful stop with the same checks, no captcha or cooldown |
+| `POST /admin/start`, `/admin/stop` | token | the [Deploy](../Deploy/) test loop (step 10): start / graceful stop with the same checks, no captcha or cooldown |
 
 Discord: `/start` has the same daily cooldown per user; members with `DISCORD_ADMIN_ROLE`
 skip it and may `/stop`, which asks the VM to sync and shut down (within ~1 min).

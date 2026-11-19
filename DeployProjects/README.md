@@ -8,7 +8,7 @@ the VM exists only while people are playing.
 | [LandingPage](LandingPage/) | Cloudflare Pages | `rising2.net`: Hebrew/English info page, live server status, captcha-protected **Start** |
 | [CF-Worker](CF-Worker/) | Cloudflare Worker + R2 | `rising2.net/api/*`: start/stop the OVH VM, status log, DNS, Discord commands, R2 access for the VM |
 | [LazyServer](LazyServer/) | OVH Public Cloud VM | `cloud_init.sh` userData + `docker-compose.yml`: GameSpy mock + official + fun dedicated servers |
-| [Deploy](Deploy/) | Docker (your machine) | one script: sets all of the above up on your accounts and runs a test start/stop loop |
+| [Deploy](Deploy/) | Docker (your machine) | 10 small steps, each with its own env + deploy / undeploy: sets all of the above up on your accounts, then a test start/stop loop |
 
 No frameworks and no npm packages: plain HTML/JS, a few small worker modules, one bash script
 (`wrangler` is only used through `npx` to deploy).

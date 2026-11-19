@@ -1,66 +1,84 @@
 # Rising2 Deploy
 
-One script, [deploy.mjs](deploy.mjs), sets up the whole flow on your own accounts and can run one
-real start/stop loop. It runs in a small Docker image (node + wrangler), so nothing gets installed
-on your machine. The code is mounted, not baked in: edit and rerun, no rebuild.
+Setting the whole flow up on your own accounts, one small step at a time. Each step owns one
+thing, has its **own** `step.env` (nothing is shared between steps), and has:
 
-It uses what's already in `DeployProjects/`:
+* **deploy**: creates / updates what it owns. It checks first, so it's safe to run again, and it
+  **waits** for the provider to catch up (OVH can take minutes before a change shows) instead of failing.
+* **undeploy**: removes what that step created, so a failed deploy can start clean.
+* **check**: only validates its `step.env`: what's missing, and values that don't look right.
 
-| Piece | From |
-|---|---|
-| Worker (`/api/*`) | [../CF-Worker](../CF-Worker) |
-| Landing page | [../LandingPage](../LandingPage) |
-| The VM's compose file + settings | [../LazyServer/docker-compose.yml](../LazyServer/docker-compose.yml), `../LazyServer/server.env` (from `server.env.example`) |
+Everything runs in a small Docker image (node + wrangler), so nothing is installed on your machine.
+The code is mounted, not baked in: edit and rerun, no rebuild.
 
-## What it does
+## Steps
 
-1. **Inputs**: checks `deploy.env`; whatever is missing goes in the report.
-2. **OVH**: API key and its rules; finds the Public Cloud project by name (`OVH_CREATE_PROJECT=yes`
-   orders one if missing); region, flavors, image; this month's cost; VMs already running; `GAME_ZIP_URL` answers.
-3. **Cloudflare**: zone; Turnstile widget; DNS (`ip` A 127.0.0.1 grey, `*` -> `ip` grey,
-   apex + `www` -> Pages, existing records are never changed); R2 bucket + the 1-day `ratelimit/` rule;
-   `server/docker-compose.yml` + `server/.env` in R2; the worker with your domain and all its secrets;
-   the landing page with its Turnstile key / Discord invite / download link; then waits for `/api/status`.
-4. **Discord** (optional): webhook check, slash commands, interactions URL.
-5. **Test loop** (`TEST_VM=yes`): starts a VM through the worker, follows its status lines until
-   "up", checks `ip.<domain>` points at it, stops it, waits until it's deleted and the DNS is parked.
-   If the VM doesn't tear itself down in 10 min, the script deletes it through the OVH API so it can't keep billing.
+| # | Step | Owns | Needs from earlier steps | Prints for later steps |
+|---|---|---|---|---|
+| 01 | `ovh-project` | the OVH Public Cloud project (finds it, or orders it with `OVH_CREATE_PROJECT=yes`) | - | `OVH_PROJECT` |
+| 02 | `ovh-setup` | the region enabled; checks flavors, image, cost API | `OVH_PROJECT` | - |
+| 03 | `cloudflare-dns` | `ip.<domain>` (A, grey) and `*.<domain>` -> ip | - | `CF_ZONE_ID`, `CF_ACCOUNT_ID` |
+| 04 | `cloudflare-r2-create` | the R2 bucket + the 1-day `ratelimit/` rule | `CF_ACCOUNT_ID` | - |
+| 05 | `cloudflare-r2-populate` | `server/docker-compose.yml` + `server/.env` in R2, from `../LazyServer` | `CF_ACCOUNT_ID` | - |
+| 06 | `cloudflare-turnstile` | the captcha widget | `CF_ACCOUNT_ID` | `TURNSTILE_SITEKEY`, `TURNSTILE_SECRET` |
+| 07 | `cloudflare-pages` | the landing page, `<domain>` + `www` and their DNS | `CF_ACCOUNT_ID`, `TURNSTILE_SITEKEY` | - |
+| 08 | `cloudflare-worker` | the worker on `<domain>/api/*` + its secrets | `CF_ACCOUNT_ID`, `CF_ZONE_ID`, `TURNSTILE_SECRET`, `OVH_PROJECT`, `DISCORD_PUBLIC_KEY` (optional) | - |
+| 09 | `discord` | `/start /status /stop` + the interactions URL | worker live (08) | `DISCORD_PUBLIC_KEY` |
+| 10 | `test-loop` | one real start -> up -> stop -> deleted (a few minutes of VM time) | everything | - |
 
-Every step prints as it runs; `out/report.md` (and `report.json`) has the results and a
-**Missing settings** table. `out/generated.env` keeps what the script made up or looked up (shared token,
-Turnstile keys, OVH project id), so a rerun reuses them. `deploy.env` and `out/` are git-ignored.
+Values you make yourself and must keep the **same** in two places:
+
+| Value | Make it with | Goes in |
+|---|---|---|
+| `SHARED_TOKEN` | `.\Deploy\step.ps1 token` (64 hex) | 08 and 10 |
+| `DISCORD_PUBLIC_KEY` | Developer Portal > General Information (09 also prints it) | 08 |
+
+Each `steps/<step>/step.env.example` lists, for every setting, what it's for and **what a real value
+looks like** (prefix, length, hex or not), plus what to do by hand before that step.
+Values from earlier steps are printed and saved in `out/<step>/outputs.env`.
 
 ## Run
 
-From `DeployProjects/`:
+From `DeployProjects/` (the image builds on first use):
 
 ```powershell
-Copy-Item Deploy/deploy.env.example Deploy/deploy.env
-```
-
-Fill in `Deploy/deploy.env` (and `LazyServer/server.env` for the game servers' passwords), then:
-
-```powershell
-docker build -t rising2-deploy Deploy
+.\Deploy\step.ps1 list
 ```
 
 ```powershell
-docker run --rm --env-file Deploy/deploy.env -v "${PWD}:/app:ro" -v "${PWD}/Deploy/out:/out" rising2-deploy
+Copy-Item Deploy\steps\03-cloudflare-dns\step.env.example Deploy\steps\03-cloudflare-dns\step.env
 ```
 
-Run it again any time: every step checks first and only creates what's missing.
-Set `TEST_VM=yes` in `deploy.env` for the real loop (a few minutes of VM time).
+```powershell
+.\Deploy\step.ps1 cloudflare-dns check
+```
 
-`DRY_RUN=1` prints the wrangler commands instead of running them (the API checks still run).
-For testing the script itself, `CF_API_BASE`, `OVH_ENDPOINT`, `DISCORD_API_BASE` and `WORKER_TEST_URL`
-can point at stand-ins.
+```powershell
+.\Deploy\step.ps1 cloudflare-dns deploy
+```
 
-## Notes
+```powershell
+.\Deploy\step.ps1 cloudflare-dns undeploy
+```
 
-* The worker's test start/stop (`POST /api/admin/start`, `/api/admin/stop`) need the shared token,
-  like the VM's own calls; they skip the captcha and the daily cooldown, not the "a VM exists" or budget checks.
-* The worker gets the same OVH keys as the script unless you set `WORKER_OVH_APP_KEY` /
-  `WORKER_OVH_APP_SECRET` / `WORKER_OVH_CONSUMER_KEY` (a key limited to `/cloud/project/*` is safer),
-  and `CF_API_TOKEN` unless you set `CF_DNS_TOKEN` (DNS Edit on the zone is all it needs).
-* Ordering an OVH project and the R2 lifecycle call are best effort: if OVH or Cloudflare want
-  something more, the report says what to do in their panel; then rerun.
+(`./Deploy/step.sh` does the same from bash.) The step number can be left out. Reports land in
+`out/<step>/deploy.report.md` / `undeploy.report.md` (+ `.json`). `step.env` files and `out/` are git-ignored.
+
+Optional in any `step.env`: `WAIT_MIN` (how long to wait for the provider) and `DRY_RUN=1`
+(wrangler commands are printed instead of run; the API calls still happen).
+
+## What undeploy keeps
+
+* **01** deletes the VMs in the project, but not the project: deleting it is an account action
+  OVH confirms by email (the report says where in the panel).
+* **04** only deletes an **empty** bucket, so saved game state (`configs_sync/`) is never lost by accident;
+  **05** removes only its two files.
+* **10** asks the worker to stop the VM and, if it doesn't go within 10 min, deletes it through the
+  OVH API, so a broken test can't keep billing.
+
+## Testing the steps themselves
+
+`CF_API_BASE`, `OVH_ENDPOINT`, `DISCORD_API_BASE`, `WORKER_TEST_URL`, `SITE_CHECK_URL` and
+`SERVER_ENV_FILE` can point the steps at stand-ins; with those and `DRY_RUN=1` every step's deploy,
+a second deploy, and undeploy were run against fake Cloudflare / OVH / Discord APIs, the real worker
+under `wrangler dev`, and a fake VM.

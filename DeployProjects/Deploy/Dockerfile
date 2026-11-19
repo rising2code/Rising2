@@ -6,7 +6,7 @@ RUN npm install -g wrangler@3.114.17 && npm cache clean --force
 
 WORKDIR /tmp
 ENV WRANGLER_SEND_METRICS=false
-ENTRYPOINT ["node", "/app/Deploy/deploy.mjs"]
+ENTRYPOINT ["node", "/app/Deploy/run.mjs"]
 
 LABEL org.opencontainers.image.source="https://github.com/rising2code/Rising2" \
       rising2.dockerfile="DeployProjects/Deploy/Dockerfile"

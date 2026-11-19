@@ -1,7 +1,7 @@
 # Rising2 dedicated server: the 2008 Windows server under Wine, started by r2launch.exe.
 # The game files are NOT in the image: mount the install folder at /game (see README).
 FROM debian:bookworm-slim
-LABEL org.opencontainers.image.source="https://github.com/yonixw/Rising2" \
+LABEL org.opencontainers.image.source="https://github.com/rising2code/Rising2" \
       rising2.dockerfile="ServerLauncher/docker/Dockerfile"
 
 RUN dpkg --add-architecture i386 \

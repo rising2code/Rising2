@@ -8,5 +8,5 @@ WORKDIR /tmp
 ENV WRANGLER_SEND_METRICS=false
 ENTRYPOINT ["node", "/app/Deploy/deploy.mjs"]
 
-LABEL org.opencontainers.image.source="https://github.com/yonixw/Rising2" \
+LABEL org.opencontainers.image.source="https://github.com/rising2code/Rising2" \
       rising2.dockerfile="DeployProjects/Deploy/Dockerfile"

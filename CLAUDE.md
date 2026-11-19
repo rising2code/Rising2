@@ -7,7 +7,7 @@ Every Dockerfile must label the image with where it was built from, so a pushed 
 the **final stage** (labels in earlier build stages don't reach the image):
 
 ```dockerfile
-LABEL org.opencontainers.image.source="https://github.com/yonixw/Rising2" \
+LABEL org.opencontainers.image.source="https://github.com/rising2code/Rising2" \
       rising2.dockerfile="<path/to/Dockerfile, relative to the repo root>"
 ```
 

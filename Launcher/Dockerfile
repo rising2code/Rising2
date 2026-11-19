@@ -17,6 +17,6 @@ RUN go-winres make --in winres/winres.json --arch amd64 \
       -o /out/Rising2_Launcher.exe .
 
 FROM scratch
-LABEL org.opencontainers.image.source="https://github.com/yonixw/Rising2" \
+LABEL org.opencontainers.image.source="https://github.com/rising2code/Rising2" \
       rising2.dockerfile="Launcher/Dockerfile"
 COPY --from=build /out/ /

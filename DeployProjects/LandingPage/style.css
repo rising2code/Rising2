@@ -217,6 +217,8 @@ h1 { font: 700 clamp(1.8rem, 4.4vw, 3rem)/1.2 Consolas, "Lucida Console", "Couri
   box-shadow: inset 0 0 0 2px #000, 0 0 0 1px #ffffff12; }
 .screen .track { padding: 0; gap: 0; }
 .screen .track img { aspect-ratio: 16 / 10; border: 0; border-radius: 0; }
+/* 4:3 art with text near the edges: show all of it (black side bars) instead of cropping */
+.screen .track .fit img { object-fit: contain; }
 .screen figure { position: relative; }
 .screen figcaption { position: absolute; inset-inline: 0; bottom: 0; margin: 0; padding: 2.4cqw 2cqw 3.6cqw;
   font: 700 clamp(11px, 1.9cqw, 15px)/1.2 Consolas, "Lucida Console", monospace; color: #b6ffb0;

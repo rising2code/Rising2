@@ -34,7 +34,7 @@ const T = {
     "gal.title": "גלריה",
     "gal.intro": "היכרות",
     "gal.arc": "שער הניצחון",
-    "gal.china": "חזית סין", "gal.courtyard": "חצר תחת אש", "gal.hacking": "האקר קרב בפעולה",
+    "gal.title2": "Rising Eagle - לחימת חי\"ר עתידנית", "gal.loadout": "החימוש של חליפת השריון", "gal.china": "חזית סין", "gal.courtyard": "חצר תחת אש", "gal.hacking": "האקר קרב בפעולה",
     "gal.trooper": "לוחם עם שלד חיצוני", "gal.docks": "קרב בנמל", "gal.tactical": "מפה טקטית ופקודות",
     "gal.menu": "רשימת השרתים - שוב מלאה",
     "gal.video": "סרטון יתווסף בקרוב",
@@ -78,7 +78,7 @@ const T = {
     "gal.title": "Gallery",
     "gal.intro": "Intro",
     "gal.arc": "Arc de Triomphe",
-    "gal.china": "The China front", "gal.courtyard": "Courtyard under fire", "gal.hacking": "Battle Hacker at work",
+    "gal.title2": "Rising Eagle - Futuristic Infantry Warfare", "gal.loadout": "The exosuit loadout", "gal.china": "The China front", "gal.courtyard": "Courtyard under fire", "gal.hacking": "Battle Hacker at work",
     "gal.trooper": "Exoskeleton trooper", "gal.docks": "Firefight at the docks", "gal.tactical": "Tactical map and orders",
     "gal.menu": "The server list - full again",
     "gal.video": "Video coming soon",
@@ -225,6 +225,7 @@ function go(i) {
   cur = (i + slides.length) % slides.length;
   // scroll only the track (never the page), one slide = the track's width
   track.scrollTo({ left: (rtl() ? -1 : 1) * cur * track.clientWidth, behavior: "smooth" });
+  if (nextAt !== Infinity) nextAt = Date.now() + EVERY_MS; // a manual move restarts the beat
   updateDots();
   // the tower's HDD light flickers while the next picture "loads"
   const hdd = $(".tower .hdd");
@@ -255,7 +256,10 @@ track.addEventListener("keydown", (e) => {
 let paused = false, resume;
 const gal = $(".gal-images");
 const pause = () => { paused = true; clearTimeout(resume); };
-const unpause = (ms = 0) => { clearTimeout(resume); resume = setTimeout(() => (paused = false), ms); };
+const unpause = (ms = 0) => {
+  clearTimeout(resume);
+  resume = setTimeout(() => { paused = false; if (nextAt !== Infinity) nextAt = Math.max(nextAt, Date.now() + EVERY_MS); }, ms);
+};
 gal.addEventListener("mouseenter", pause);
 gal.addEventListener("mouseleave", () => unpause());
 gal.addEventListener("focusin", pause);
@@ -264,13 +268,24 @@ gal.addEventListener("touchstart", pause, { passive: true });
 gal.addEventListener("touchend", () => unpause(5000), { passive: true });
 // The PC switches on (screen power-on effect, LEDs) the first time it scrolls into view;
 // the slideshow only runs while it's on screen.
-let pcVisible = false;
+// The slideshow waits on the first picture until the PC is properly in view (most of it on
+// screen), shows that picture for a few seconds, and only then starts rolling.
+let pcVisible = false, nextAt = Infinity;
+const FIRST_MS = 3500, EVERY_MS = 2000;
 const pc = $(".pc");
 new IntersectionObserver(([e]) => {
-  pcVisible = e.isIntersecting;
-  if (pcVisible) setTimeout(() => pc.classList.add("on"), 250);
-}, { threshold: 0.35 }).observe(pc);
-setInterval(() => { if (!paused && pcVisible && !document.hidden) step(1); }, 2000);
+  const seen = e.intersectionRatio >= 0.6 || e.intersectionRect.height >= innerHeight * 0.6;
+  if (seen && !pcVisible) {
+    if (nextAt === Infinity) { setTimeout(() => pc.classList.add("on"), 250); nextAt = Date.now() + FIRST_MS; }
+    else nextAt = Math.max(nextAt, Date.now() + EVERY_MS); // back in view: a full beat before moving
+  }
+  pcVisible = seen;
+}, { threshold: [0, 0.3, 0.6, 0.9] }).observe(pc);
+setInterval(() => {
+  if (paused || !pcVisible || document.hidden || Date.now() < nextAt) return;
+  step(1);
+  nextAt = Date.now() + EVERY_MS;
+}, 200);
 
 // Click the left / right part of the screen to go back / forward. Needed in 3D: Chrome's hit-testing
 // on the tilted screen can give the click to the scrolling image strip instead of the arrow button.

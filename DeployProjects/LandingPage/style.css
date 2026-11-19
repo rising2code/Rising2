@@ -71,8 +71,24 @@ main { overflow-x: clip; } /* the sun aura is wider than a phone */
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes sun-pulse { 50% { transform: scale(1.06); opacity: .85; } }
 @media (prefers-reduced-motion: reduce) { .sun::before, .corona { animation: none; } }
-h1 { font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 700;
-  background: linear-gradient(180deg, #fff 30%, var(--steel)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* same green terminal glow as the gallery screen captions (monospace is wider, so a bit smaller) */
+h1 { font: 700 clamp(1.8rem, 4.4vw, 3rem)/1.2 Consolas, "Lucida Console", "Courier New", monospace; letter-spacing: -.01em;
+  /* old CRT: the letters are filled with scanlines and a slow bright roll bar (background clipped
+     to the text); the shadows add a red/cyan colour fringe and the phosphor glow */
+  color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image:
+    linear-gradient(180deg, #0000 0 44%, #ffffff70 50%, #0000 56%),
+    repeating-linear-gradient(180deg, #d2ffcc 0 2px, #3f9a55 2px 3px);
+  background-size: 100% 300%, 100% 100%;
+  text-shadow: -2px 0 #ff2d5a40, 2px 0 #2de0ff40, 0 0 8px #3cff6b80, 0 0 22px #3cff6b30;
+  animation: crt-roll 7s linear infinite, crt-jitter 6s steps(1) infinite; }
+@keyframes crt-roll { from { background-position: 0 100%, 0 0; } to { background-position: 0 0%, 0 0; } }
+/* a rare one-frame horizontal glitch, like a bad signal */
+@keyframes crt-jitter { 0%, 100% { transform: none; } 61% { transform: translateX(3px) skewX(-4deg); } 62% { transform: translateX(-2px); } 63% { transform: none; }
+  88% { transform: translateX(-3px) skewX(3deg); } 89% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { h1 { animation: none; } }
+/* Consolas has no Hebrew and the fallback monospace spreads the letters out: same glow, Hebrew font */
+[dir=rtl] h1 { font-family: var(--body); letter-spacing: 0; }
 .lead { color: var(--muted); font-size: 1.08rem; max-width: 60ch; }
 .cta { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.5rem; }
 

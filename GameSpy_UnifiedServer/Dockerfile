@@ -1,7 +1,9 @@
 FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="Rising2 GameSpy Unified Server" \
-      org.opencontainers.image.description="GameSpy mock for Rising Eagle: GP, QR2, server browser, CD key, Auth, Sake, Competition"
+      org.opencontainers.image.description="GameSpy mock for Rising Eagle: GP, QR2, server browser, CD key, Auth, Sake, Competition" \
+      org.opencontainers.image.source="https://github.com/yonixw/Rising2" \
+      rising2.dockerfile="GameSpy_UnifiedServer/Dockerfile"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

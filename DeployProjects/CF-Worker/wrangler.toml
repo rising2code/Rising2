@@ -1,0 +1,40 @@
+name = "rising2-worker"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+# The worker answers under the landing page's own domain, so the page calls /api/* with no CORS.
+routes = [
+  { pattern = "rising2.net/api/*", zone_name = "rising2.net" },
+  { pattern = "www.rising2.net/api/*", zone_name = "rising2.net" },
+]
+
+# The VM's userData script lives in ../LazyServer and is bundled into the worker as text.
+rules = [{ type = "Text", globs = ["**/*.sh"], fallthrough = true }]
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "rising2"
+
+# Safety net: tear the VM down after 05:00 Israel time even if the VM's own timer died.
+# 03:15 UTC = 05:15 (winter) / 06:15 (summer) in Israel.
+[triggers]
+crons = ["15 3 * * *"]
+
+[vars]
+PUBLIC_URL = "https://rising2.net"   # the VM reaches this worker at PUBLIC_URL/api
+DNS_NAME = "ip.rising2.net"
+# Cloudflare only allows 30 s on Enterprise zones; 60 is the lowest for everyone else.
+DNS_TTL = "60"
+OVH_ENDPOINT = "https://eu.api.ovh.com/1.0"
+OVH_REGION = "GRA11"
+OVH_FLAVORS = "c3-8,b3-16"          # tried in order (the first one may be out of stock)
+OVH_IMAGE = "Debian 12"
+VM_NAME = "rising2-lazy"
+GAME_ZIP_URL = "https://rising2-game.s3.gra.io.cloud.ovh.net/Game.zip"
+START_COOLDOWN_HOURS = "20"         # one "Start" per IP / Discord user per this many hours
+DISCORD_ADMIN_ROLE = ""             # role id: no cooldown, may /stop
+
+# Secrets (wrangler secret put NAME), see README:
+# SHARED_TOKEN, TURNSTILE_SECRET, CF_API_TOKEN, CF_ZONE_ID,
+# OVH_APP_KEY, OVH_APP_SECRET, OVH_CONSUMER_KEY, OVH_PROJECT,
+# DISCORD_PUBLIC_KEY, DISCORD_WEBHOOK_URL (optional)

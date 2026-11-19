@@ -1,0 +1,84 @@
+# Rising2 LazyServer stack. Uploaded to R2 server/docker-compose.yml (see upload.sh);
+# the VM downloads it to /opt/rising2 together with server/.env (secrets, see server.env.example).
+# cloud_init.sh appends PUBLIC_IP=<this VM's IP> to .env before "docker compose up".
+#
+# Host networking everywhere: the GameSpy mock must see the real source IP of every game
+# server and player. The game servers reach the mock through the patched *.reagspy.com names.
+
+x-reagspy-hosts: &reagspy-hosts
+  - "login.reagspy.com:${PUBLIC_IP}"
+  - "gpcm.reagspy.com:${PUBLIC_IP}"
+  - "gpsp.reagspy.com:${PUBLIC_IP}"
+  - "motd.reagspy.com:${PUBLIC_IP}"
+  - "compete.reagspy.com:${PUBLIC_IP}"
+  - "auth.reagspy.com:${PUBLIC_IP}"
+  - "gp.reagspy.com:${PUBLIC_IP}"
+  - "gamestats.reagspy.com:${PUBLIC_IP}"
+  - "keymaster.reagspy.com:${PUBLIC_IP}"
+  - "sake.reagspy.com:${PUBLIC_IP}"
+  - "master.reagspy.com:${PUBLIC_IP}"
+  - "natneg1.reagspy.com:${PUBLIC_IP}"
+  - "natneg2.reagspy.com:${PUBLIC_IP}"
+  - "natneg3.reagspy.com:${PUBLIC_IP}"
+  - "risingeaglepc.available.reagspy.com:${PUBLIC_IP}"
+  - "risingeaglepc.master.reagspy.com:${PUBLIC_IP}"
+  - "risingeaglepc.ms17.reagspy.com:${PUBLIC_IP}"
+  - "risingeaglepc.auth.pubsvs.reagspy.com:${PUBLIC_IP}"
+  - "risingeaglepc.sake.reagspy.com:${PUBLIC_IP}"
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "3" }
+
+services:
+  # Mock GameSpy (GameSpy_UnifiedServer)
+  gamespy:
+    image: ${IMG_GAMESPY:-yonixw/rising2-gamespy:latest}
+    restart: unless-stopped
+    network_mode: host
+    logging: *logging
+    volumes:
+      - ./gamespy/data:/data
+      - ./gamespy/config:/app/config
+    environment:
+      R2_LOG_LEVEL: INFO
+      R2_MOTD: ${R2_MOTD:-Welcome to Rising2}
+      R2_ADMIN_TOKEN: ${R2_ADMIN_TOKEN:-}
+      # IP:PORT=NICK of each dedicated server below (map tracking)
+      R2_SERVER_ACCOUNTS: "${PUBLIC_IP}:${OFFICIAL_PORT}=${OFFICIAL_NICK},${PUBLIC_IP}:${FUN_PORT}=${FUN_NICK}"
+      R2_JOB_REPORTS_KEEP: 7d
+      R2_JOB_LOGS_MAX_MB: 100
+
+  # Official rules: ranked play, stats saved
+  official:
+    image: ${IMG_DEDICATED:-yonixw/rising2-dedicated:latest}
+    restart: unless-stopped
+    network_mode: host
+    depends_on: [gamespy]
+    logging: *logging
+    extra_hosts: *reagspy-hosts
+    volumes:
+      - /srv/rising2/game:/game
+    environment:
+      R2_NICK: ${OFFICIAL_NICK}
+      R2_PASS: ${OFFICIAL_PASS}
+      R2_PROFILE: ${OFFICIAL_PROFILE:-Eiffel_server}
+      R2_PORT: ${OFFICIAL_PORT}
+
+  # Fun server: custom rotation / rules (set the profile in .env)
+  fun:
+    image: ${IMG_DEDICATED:-yonixw/rising2-dedicated:latest}
+    restart: unless-stopped
+    network_mode: host
+    depends_on: [gamespy]
+    logging: *logging
+    extra_hosts: *reagspy-hosts
+    volumes:
+      # Same install as "official". If the two servers fight over files in bin/,
+      # give this one its own copy of the game folder.
+      - /srv/rising2/game:/game
+    environment:
+      R2_NICK: ${FUN_NICK}
+      R2_PASS: ${FUN_PASS}
+      R2_PROFILE: ${FUN_PROFILE:-Fun_server}
+      R2_PORT: ${FUN_PORT}

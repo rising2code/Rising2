@@ -22,7 +22,8 @@ Discord /start /stop ─────┼─> CF-Worker ───────┤
 VM (cloud_init.sh) ───────┴─> /api/event, /api/dns, /api/r2/*, /api/should-stop, /api/teardown
 ```
 
-1. **Start** (web or Discord) -> worker checks the cooldown, checks no VM exists, creates one
+1. **Start** (web or Discord) -> worker refuses if any VM exists in the OVH project (any name or
+   region) or a start is in progress, only then checks the caller's cooldown, and creates one
    (`c3-8`, falls back to `b3-16`).
 2. **First boot** (`cloud_init.sh`): Docker -> compose file and `.env` from R2 -> pull images ->
    download + unzip `Game.zip` from the OVH bucket -> restore SQLite/config from R2 ->

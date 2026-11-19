@@ -25,7 +25,7 @@ const T = {
     "start.hint": "אישור קצר שאתם לא בוט, ואז השרת מתחיל לעלות.",
     "start.btn": "העירו את השרת", "start.sending": "שולח…", "start.ok": "הבקשה התקבלה, השרת עולה!",
     "start.captcha": "אימות נכשל - נסו שוב.", "start.cooldown": "כבר הפעלתם היום. נסו שוב בעוד ~{h} שעות.",
-    "start.running": "השרת כבר פעיל או עולה.", "start.fail": "הבקשה נכשלה. נסו שוב מאוחר יותר.",
+    "start.running": "השרת כבר פעיל או עולה.", "start.budget": "התקציב החודשי של השרת נגמר. נחזור בחודש הבא - פרטים בדיסקורד.", "start.fail": "הבקשה נכשלה. נסו שוב מאוחר יותר.",
     "why.title": "משחקים בחינם, עם מעריצים אחרים",
     "why.free": "חינם וקוד פתוח", "why.free.d": "בלי מנוי ובלי פרסומות, וכל הקוד פתוח ב-GitHub.",
     "why.play": "משחקים עכשיו", "why.play.d": "המשגר מגדיר הכול לבד. השרת ישן? לחיצה אחת כאן והוא עולה בתוך דקות.",
@@ -69,7 +69,7 @@ const T = {
     "start.hint": "A quick check that you're not a bot, then the server starts.",
     "start.btn": "Wake the server", "start.sending": "Sending…", "start.ok": "Got it, the server is starting!",
     "start.captcha": "Check failed - try again.", "start.cooldown": "You already started it today. Try again in ~{h} h.",
-    "start.running": "The server is already up or starting.", "start.fail": "Request failed. Try again later.",
+    "start.running": "The server is already up or starting.", "start.budget": "This month's server budget is used up. Back next month - more on Discord.", "start.fail": "Request failed. Try again later.",
     "why.title": "Play FREE, with other FANS",
     "why.free": "Free and open source", "why.free.d": "No subscription, no ads, and all the code is open on GitHub.",
     "why.play": "Play now", "why.play.d": "The launcher sets everything up. Server asleep? One click here and it's up in minutes.",
@@ -339,6 +339,7 @@ $("#start").onsubmit = async (e) => {
     if (r.ok) msg.textContent = t("start.ok");
     else if (d.error === "captcha") msg.textContent = t("start.captcha");
     else if (d.error === "cooldown") msg.textContent = t("start.cooldown", { h: d.retryAfterHours });
+    else if (d.error === "budget") msg.textContent = t("start.budget");
     else if (r.status === 409) msg.textContent = t("start.running");
     else msg.textContent = t("start.fail");
     if (r.ok) { status = { ...(status || { log: [] }), state: "starting" }; renderStatus(); setTimeout(poll, 4000); }

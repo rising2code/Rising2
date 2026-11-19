@@ -28,6 +28,10 @@ VM_NAME = "rising2-lazy"
 GAME_ZIP_URL = "https://rising2-game.s3.gra.io.cloud.ovh.net/Game.zip"
 START_COOLDOWN_HOURS = "20"         # one "Start" per IP / Discord user per this many hours
 DISCORD_ADMIN_ROLE = ""             # role id: no cooldown, may /stop
+# Monthly OVH budget (EUR, whole project): no Start once this month's cost so far, or OVH's
+# forecast for the month, reaches these. "" or 0 = no limit.
+MAX_COST_CURRENT = "15"
+MAX_COST_FORECAST = "20"
 
 # Secrets (wrangler secret put NAME), see README:
 # SHARED_TOKEN, TURNSTILE_SECRET, CF_API_TOKEN, CF_ZONE_ID,

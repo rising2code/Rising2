@@ -8,7 +8,7 @@ as the VM's userData.
 | Path | Who | What |
 |---|---|---|
 | `GET /status` | public | `{state, updated, log[10]}`; state = `off` `starting` `up` `stopping` `error` |
-| `POST /start` | public, Turnstile | form with `cf-turnstile-response`; once per IP per `START_COOLDOWN_HOURS` |
+| `POST /start` | public, Turnstile | form with `cf-turnstile-response`; 409 if any VM exists in the project or a start is in progress, 403 if the monthly budget is reached, 502 if OVH can't be asked; else once per IP per `START_COOLDOWN_HOURS` |
 | `POST /discord` | Discord | interactions endpoint: `/start` `/status` `/stop` |
 | `POST /event` | VM (token) | `{msg, state?}` -> status log (+ Discord webhook if set) |
 | `POST /dns` | VM (token) | `ip.rising2.net` -> the caller's IP; returns `{ip}` |
@@ -51,3 +51,13 @@ Local run (`.dev.vars` holds the secrets, gitignored):
 ```powershell
 npx wrangler dev
 ```
+
+## Monthly budget
+
+`MAX_COST_CURRENT` / `MAX_COST_FORECAST` (EUR, `wrangler.toml`): before every start (web and Discord,
+admins too) the worker reads this month's OVH Public Cloud usage for the whole project
+(`/usage/current` and `/usage/forecast`: VMs, the Game.zip bucket, traffic...) and refuses if either
+is at or over its limit. The numbers go to Discord only, never to the public status.
+After each teardown it posts "This month's server cost so far: ..." to the Discord webhook.
+OVH adds usage up hourly, so the last hour or two may be missing; compare the first real post with
+the project's Billing control page in the OVH panel.

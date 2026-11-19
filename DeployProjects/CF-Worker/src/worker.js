@@ -58,11 +58,10 @@ async function webStart(req, env, ctx) {
   const ip = req.headers.get("CF-Connecting-IP") || "unknown";
   if (!token || !(await turnstileOk(env, token, ip))) return json({ error: "captcha" }, 403);
 
-  const wait = await cooldown(env, `ip_${ip}`);
-  if (wait) return json({ error: "cooldown", retryAfterHours: wait }, 429);
-
-  const res = await startVm(env, ctx, "Website");
-  return json(res, res.ok ? 200 : 409);
+  const res = await startVm(env, ctx, "Website", `ip_${ip}`);
+  if (res.error === "cooldown") return json(res, 429);
+  if (res.error === "budget") return json(res, 403);
+  return json(res, res.ok ? 200 : res.error === "ovh" ? 502 : 409);
 }
 
 async function turnstileOk(env, token, ip) {
@@ -90,9 +89,45 @@ async function cooldown(env, who) {
 
 // ------------------------------------------------------------------ VM life cycle
 
-async function startVm(env, ctx, by) {
-  const existing = await findInstance(env);
-  if (existing) return { ok: false, error: "already running", state: (await readStatus(env)).state };
+// Order matters: the "already running" checks come before the cooldown, so pressing Start
+// while the server is up doesn't use up the visitor's one start for the day.
+// cooldownKey = null skips the cooldown (Discord admins).
+const STARTING_GRACE_MS = 15 * 60e3; // a "starting" state younger than this blocks a new start
+
+async function startVm(env, ctx, by, cooldownKey) {
+  // 1. Any VM at all in the OVH project (any name, any region) -> no new one. Fails closed:
+  //    if OVH can't be asked, nothing is created.
+  let vms;
+  try {
+    vms = await listInstances(env);
+  } catch (e) {
+    return { ok: false, error: "ovh", message: "can't check for a running VM, try again later" };
+  }
+  const st = await readStatus(env);
+  if (vms.length) {
+    return { ok: false, error: "already running", message: `a VM already exists (${vms.map((v) => `${v.name}: ${v.status}`).join(", ")})`, state: st.state };
+  }
+  // 2. A start in the last minutes whose VM OVH doesn't list yet (double click, two people at once).
+  if (st.state === "starting" && Date.now() - st.updated < STARTING_GRACE_MS) {
+    return { ok: false, error: "already running", message: "a start is already in progress", state: st.state };
+  }
+  // 3. The month's OVH bill: over either limit -> no start, for anyone (admins too).
+  let cost;
+  try {
+    cost = await monthCost(env);
+  } catch (e) {
+    return { ok: false, error: "ovh", message: "can't read this month's cost, try again later" };
+  }
+  const maxNow = Number(env.MAX_COST_CURRENT), maxFc = Number(env.MAX_COST_FORECAST);
+  if ((maxNow && cost.current >= maxNow) || (maxFc && cost.forecast >= maxFc)) {
+    await discordPost(env, `Start refused: this month's budget is used up (${fmtCost(cost)}).`);
+    return { ok: false, error: "budget", message: "this month's server budget is used up" };
+  }
+  // 4. Only now count it against the caller's daily start.
+  if (cooldownKey) {
+    const wait = await cooldown(env, cooldownKey);
+    if (wait) return { ok: false, error: "cooldown", retryAfterHours: wait };
+  }
 
   await env.R2.delete(STOP_KEY);
   await addEvent(env, `Start requested (${by})`, "starting");
@@ -132,9 +167,14 @@ async function createInstance(env) {
   throw lastErr || new Error("no flavor available");
 }
 
+// Every instance in the project, all regions (no ?region= filter).
+async function listInstances(env) {
+  return ovh(env, "GET", `/cloud/project/${env.OVH_PROJECT}/instance`);
+}
+
+// Our game VM (by name), for teardown.
 async function findInstance(env) {
-  const list = await ovh(env, "GET", `/cloud/project/${env.OVH_PROJECT}/instance?region=${env.OVH_REGION}`);
-  return list.find((i) => i.name === env.VM_NAME) || null;
+  return (await listInstances(env)).find((i) => i.name === env.VM_NAME) || null;
 }
 
 // Graceful: the VM sees the flag within a minute, syncs to R2, then calls /teardown.
@@ -150,7 +190,32 @@ async function teardown(env, why) {
   await env.R2.delete(STOP_KEY);
   await setDns(env, "127.0.0.1").catch(() => {}); // don't leave the name on an IP someone else may get
   await addEvent(env, `${why}: VM deleted`, "off");
+  // tell the community what running it costs (Discord only, not the public status log)
+  const cost = await monthCost(env).catch(() => null);
+  if (cost) await discordPost(env, `This month's server cost so far: ${fmtCost(cost)}. Thanks for keeping it fan-funded!`);
 }
+
+// ------------------------------------------------------------------ cost (OVH Public Cloud usage)
+
+// This month's bill for the whole project: VMs, Object Storage (the Game.zip bucket), traffic,
+// volumes... OVH adds usage up hourly, so the last hour or two may not be in yet.
+async function monthCost(env) {
+  const base = `/cloud/project/${env.OVH_PROJECT}/usage`;
+  const [cur, fc] = await Promise.all([ovh(env, "GET", `${base}/current`), ovh(env, "GET", `${base}/forecast`)]);
+  return { current: sumPrices(cur), forecast: sumPrices(fc) };
+}
+
+// Adds up every "totalPrice" in OVH's usage tree. Once an item has a totalPrice its children
+// (per-instance details, stored/bandwidth parts) are already in it, so we don't go deeper.
+function sumPrices(node) {
+  if (Array.isArray(node)) return node.reduce((a, n) => a + sumPrices(n), 0);
+  if (!node || typeof node !== "object") return 0;
+  if (typeof node.totalPrice === "number") return node.totalPrice;
+  if (node.totalPrice && typeof node.totalPrice.value === "number") return node.totalPrice.value;
+  return Object.values(node).reduce((a, n) => a + sumPrices(n), 0);
+}
+
+const fmtCost = (c) => `€${c.current.toFixed(2)} (forecast for the month €${c.forecast.toFixed(2)})`;
 
 // ------------------------------------------------------------------ status log
 
@@ -165,12 +230,15 @@ async function addEvent(env, msg, state) {
   st.updated = Date.now();
   if (msg) st.log = [...st.log, { t: st.updated, msg }].slice(-LOG_KEEP);
   await env.R2.put(STATUS_KEY, JSON.stringify(st));
-  if (msg && env.DISCORD_WEBHOOK_URL) {
-    await fetch(env.DISCORD_WEBHOOK_URL, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content: `\`[${st.state}]\` ${msg}`, allowed_mentions: { parse: [] } }),
-    }).catch(() => {});
-  }
+  if (msg) await discordPost(env, `\`[${st.state}]\` ${msg}`);
+}
+
+async function discordPost(env, content) {
+  if (!env.DISCORD_WEBHOOK_URL) return;
+  await fetch(env.DISCORD_WEBHOOK_URL, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+  }).catch(() => {});
 }
 
 // ------------------------------------------------------------------ R2 files for the VM
@@ -244,12 +312,9 @@ async function discord(req, env, ctx) {
       return reply(`**State:** ${st.state}\n${log || "(no events yet)"}`);
     }
     case "start": {
-      if (!isAdmin) {
-        const wait = await cooldown(env, `discord_${user.id}`);
-        if (wait) return reply(`You already used Start today. Try again in ~${wait}h.`);
-      }
-      const res = await startVm(env, ctx, `Discord: ${user.username}`);
-      return reply(res.ok ? "Starting the server... follow with `/status`." : `Not started: ${res.error}.`);
+      const res = await startVm(env, ctx, `Discord: ${user.username}`, isAdmin ? null : `discord_${user.id}`);
+      if (res.error === "cooldown") return reply(`You already used Start today. Try again in ~${res.retryAfterHours}h.`);
+      return reply(res.ok ? "Starting the server... follow with `/status`." : `Not started: ${res.message || res.error}.`);
     }
     case "stop": {
       if (!isAdmin) return reply("Only admins can stop the server.");

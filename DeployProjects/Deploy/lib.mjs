@@ -24,7 +24,7 @@ export const F = {
   ovhSecret: { re: /^[A-Za-z0-9]{32}$/, shape: "32 letters/digits (\"Application Secret\")" },
   ovhConsumer: { re: /^[A-Za-z0-9]{32}$/, shape: "32 letters/digits (\"Consumer Key\")" },
   ovhProject: { re: /^[0-9a-f]{32}$/, shape: "32 hex characters: the project id (OVH panel > Public Cloud > your project: under its name and in the page URL)" },
-  ovhRegion: { re: /^[A-Z]+\d*(-[A-Z]+-\d+)?(,[A-Z]+\d*(-[A-Z]+-\d+)?)*$/, shape: "OVH region code(s), tried in order: DE1 or DE1,GRA11 (also GRA11, SBG5, WAW1, UK1, BHS5)" },
+  ovhRegion: { re: /^[A-Z]+\d*(-[A-Z]+-\d+)?(,[A-Z]+\d*(-[A-Z]+-\d+)?)*$/, shape: "OVH region code(s), tried in order: DE1,GRA11 or just GRA11 (others: SBG5, WAW1, UK1, BHS5)" },
   name: { re: /^[a-z0-9][a-z0-9-]{0,62}$/, shape: "lowercase letters, digits and -" },
   yesno: { re: /^(yes|no)$/, shape: "yes or no" },
   number: { re: /^\d+(\.\d+)?$/, shape: "a number" },

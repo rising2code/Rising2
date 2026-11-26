@@ -20,7 +20,8 @@ export async function deleteInstance(env, id) {
 
 // Create the VM with cloud_init.sh as its userData. OVH_REGION may be a list ("DE1,GRA11"):
 // every OVH_FLAVORS size is tried in the first region, then in the next one (a region or a size
-// can be out of stock). onCreated / onFlavorFailed get a status line.
+// can be out of stock). OVH_IMAGE may be a list too ("Debian 12 - Docker,Debian 12"): the first
+// one the region offers is used. onCreated / onFlavorFailed get a status line.
 export async function createInstance(env, onCreated, onFlavorFailed) {
   const regions = env.OVH_REGION.split(",").map((s) => s.trim()).filter(Boolean);
   const multi = regions.length > 1;
@@ -38,8 +39,8 @@ export async function createInstance(env, onCreated, onFlavorFailed) {
         ovh(env, "GET", `${project(env)}/image?region=${region}&osType=linux`),
       ]);
       flavors = fl;
-      image = images.find((i) => i.name === env.OVH_IMAGE);
-      if (!image) throw new Error(`image ${env.OVH_IMAGE} not found`);
+      for (const want of env.OVH_IMAGE.split(",").map((s) => s.trim())) image ||= images.find((i) => i.name === want);
+      if (!image) throw new Error(`none of the images ${env.OVH_IMAGE} found`);
     } catch (e) {
       lastErr = e;
       await onFlavorFailed(`Region ${region} skipped: ${e.message.slice(0, 120)}`);
@@ -52,7 +53,7 @@ export async function createInstance(env, onCreated, onFlavorFailed) {
         await ovh(env, "POST", `${project(env)}/instance`, {
           name: env.VM_NAME, region, flavorId: flavor.id, imageId: image.id, userData, monthlyBilling: false,
         });
-        await onCreated(`VM created (${multi ? `${region}, ` : ""}${name}), booting...`);
+        await onCreated(`VM created (${multi ? `${region}, ` : ""}${name}, ${image.name}), booting...`);
         return;
       } catch (e) {
         lastErr = e;

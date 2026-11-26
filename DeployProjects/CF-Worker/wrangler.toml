@@ -21,9 +21,9 @@ DNS_NAME = "ip.rising2.net"
 # Cloudflare only allows 30 s on Enterprise zones; 60 is the lowest for everyone else.
 DNS_TTL = "60"
 OVH_ENDPOINT = "https://eu.api.ovh.com/1.0"
-OVH_REGION = "GRA11"                # or a list, first choice first: "DE1,GRA11"
+OVH_REGION = "DE1,GRA11"            # tried in order: Frankfurt (best ping from Israel), then Gravelines (most capacity)
 OVH_FLAVORS = "c3-8,b3-16"          # tried in order (the first one may be out of stock)
-OVH_IMAGE = "Debian 12"
+OVH_IMAGE = "Debian 12 - Docker,Debian 12"   # first one found in the region (Docker preinstalled saves 1-2 min)
 VM_NAME = "rising2-lazy"
 GAME_ZIP_URL = "https://rising2-game.s3.gra.io.cloud.ovh.net/Game.zip"
 START_COOLDOWN_HOURS = "20"         # one "Start" per IP / Discord user per this many hours

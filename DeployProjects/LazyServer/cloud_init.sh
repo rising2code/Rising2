@@ -81,10 +81,14 @@ init() {
   [ -f "$APP/.done" ] && { log "already initialised"; return; }
   mkdir -p "$APP" "$GAME"
   cp "$0" "$SELF" && chmod 700 "$SELF"
-  say "VM booted, installing Docker..." starting
-
-  command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh >/var/log/r2-docker.log 2>&1 \
-    || fail "Docker install"
+  # A "Debian 12 - Docker" image has Docker already (saves 1-2 min). Install only if docker or its
+  # compose plugin is missing - an image with an old Docker and no "docker compose" gets it too.
+  if docker compose version >/dev/null 2>&1; then
+    say "VM booted, Docker already installed ($(docker --version | cut -d, -f1))" starting
+  else
+    say "VM booted, installing Docker..." starting
+    curl -fsSL https://get.docker.com | sh >/var/log/r2-docker.log 2>&1 || fail "Docker install"
+  fi
 
   api GET /r2/server/docker-compose.yml -o "$APP/docker-compose.yml" || fail "download docker-compose.yml"
   api GET /r2/server/.env -o "$APP/.env" || fail "download .env"

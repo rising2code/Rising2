@@ -11,7 +11,7 @@ export default {
     ...ovhKey("deploy"),
     S.OVH_PROJECT, S.OVH_REGION,
     { name: "OVH_FLAVORS", f: F.flavors, required: true, def: "c3-8,b3-16", about: "VM sizes the worker tries, in order" },
-    { name: "OVH_IMAGE", f: F.any, required: true, def: "Debian 12", about: "the VM's OS image name" },
+    S.OVH_IMAGE,
     S.VM_NAME,
   ],
 
@@ -37,8 +37,13 @@ export default {
           return f.length ? f : null;
         }, { minutes: E.WAIT_MIN });
         R.ok(`${region}: flavors`, `${found.join(", ")} available${found.length < names.length ? ` (not: ${names.filter((n) => !found.includes(n)).join(", ")})` : ""}`);
-        await waitFor(`image "${E.OVH_IMAGE}" in ${region}`, async () => (await ovh("GET", `${P}/image?region=${region}&osType=linux`)).some((i) => i.name === E.OVH_IMAGE), { minutes: E.WAIT_MIN });
-        R.ok(`${region}: image`, `"${E.OVH_IMAGE}" available`);
+        const wanted = E.OVH_IMAGE.split(",").map((s) => s.trim()).filter(Boolean);
+        const img = await waitFor(`image ${wanted.join(" / ")} in ${region}`, async () => {
+          const names = (await ovh("GET", `${P}/image?region=${region}&osType=linux`)).map((i) => i.name);
+          return wanted.find((w) => names.includes(w)) || null;
+        }, { minutes: E.WAIT_MIN });
+        if (img === wanted[0]) R.ok(`${region}: image`, `"${img}" available`);
+        else R.warn(`${region}: image`, `"${wanted[0]}" not offered here: the VM will use "${img}"`);
         usable++;
       } catch (e) {
         // one region failing is a warning while another one works: the worker skips it

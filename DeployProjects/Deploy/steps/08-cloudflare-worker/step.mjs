@@ -38,7 +38,7 @@ export default {
     // ---- settings (plain vars)
     S.OVH_REGION,
     { name: "OVH_FLAVORS", f: F.flavors, required: true, def: "c3-8,b3-16", about: "VM sizes to try, in order" },
-    { name: "OVH_IMAGE", f: F.any, required: true, def: "Debian 12", about: "the VM's OS image" },
+    S.OVH_IMAGE,
     S.VM_NAME,
     { name: "GAME_ZIP_URL", f: F.url, required: true, about: "Game.zip the VM downloads (root holds bin/ and data/)" },
     { name: "START_COOLDOWN_HOURS", f: F.number, required: true, def: "20", about: "one Start per IP / Discord user per this many hours" },

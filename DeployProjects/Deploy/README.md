@@ -22,7 +22,7 @@ The code is mounted, not baked in: edit and rerun, no rebuild.
 
 | # | Step | Owns | Needs from earlier steps | Prints for later steps |
 |---|---|---|---|---|
-| 02 | `ovh-setup` | the region(s) enabled (`OVH_REGION=DE1,GRA11` = tried in order); checks flavors, image, cost API | `OVH_PROJECT` (by hand) | - |
+| 02 | `ovh-setup` | the region(s) enabled (default `OVH_REGION=DE1,GRA11`, tried in order); checks flavors, image(s) (default `Debian 12 - Docker`, then `Debian 12`), cost API | `OVH_PROJECT` (by hand) | - |
 | 03 | `cloudflare-dns` | `ip.<domain>` (A, grey) and `*.<domain>` -> ip | - | `CF_ZONE_ID`, `CF_ACCOUNT_ID` |
 | 05 | `cloudflare-r2-populate` | `server/docker-compose.yml` + `server/.env` in R2, from `../LazyServer` | `CF_ACCOUNT_ID` | - |
 | 06 | `cloudflare-turnstile` | the captcha widget | `CF_ACCOUNT_ID` | `TURNSTILE_SITEKEY`, `TURNSTILE_SECRET` |

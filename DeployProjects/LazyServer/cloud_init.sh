@@ -10,7 +10,8 @@ set -uo pipefail
 
 WORKER_URL="__WORKER_URL__"
 TOKEN="__TOKEN__"
-GAME_ZIP_URL="__GAME_ZIP_URL__"
+GAME_ZIP_URL="__GAME_ZIP_URL__"   # "none" = skip the game files (test server)
+SSH_PUBKEY="__SSH_PUBKEY__"       # optional: one public key let in for the default user (debugging)
 
 APP=/opt/rising2                 # compose project: docker-compose.yml, .env, gamespy/{data,config}
 GAME=/srv/rising2/game           # unzipped Game.zip (the folder with bin/ and data/)
@@ -77,10 +78,25 @@ sync_down() {
 
 # ---------------------------------------------------------------- first boot
 
+# The VM is made with no SSH key; if the worker passed one (SSH_PUBLIC_KEY), let it in for the
+# image's default user (debian on OVH's Debian images; else the first normal user).
+add_ssh_key() {
+  case "$SSH_PUBKEY" in ssh-*|ecdsa-*) ;; *) return 0 ;; esac
+  local user home
+  user=$(getent passwd debian >/dev/null && echo debian || getent passwd 1000 | cut -d: -f1)
+  [ -n "$user" ] || { log "no default user found for the SSH key"; return 0; }
+  home=$(getent passwd "$user" | cut -d: -f6)
+  install -d -m 700 -o "$user" -g "$user" "$home/.ssh"
+  grep -qxF "$SSH_PUBKEY" "$home/.ssh/authorized_keys" 2>/dev/null || echo "$SSH_PUBKEY" >>"$home/.ssh/authorized_keys"
+  chown "$user:$user" "$home/.ssh/authorized_keys" && chmod 600 "$home/.ssh/authorized_keys"
+  log "SSH key added for $user"
+}
+
 init() {
   [ -f "$APP/.done" ] && { log "already initialised"; return; }
   mkdir -p "$APP" "$GAME"
   cp "$0" "$SELF" && chmod 700 "$SELF"
+  add_ssh_key   # first, so a later failure can still be looked at over SSH
   # A "Debian 12 - Docker" image has Docker already (saves 1-2 min). Install only if docker or its
   # compose plugin is missing - an image with an old Docker and no "docker compose" gets it too.
   if docker compose version >/dev/null 2>&1; then
@@ -97,7 +113,9 @@ init() {
   say "Pulling images and downloading the game..."
   ( cd "$APP" && docker compose pull -q ) >/var/log/r2-pull.log 2>&1 &
   local pull=$!
-  if [ ! -f "$GAME/.unzipped" ]; then
+  if [ "$GAME_ZIP_URL" = "none" ]; then
+    say "GAME_ZIP_URL is none: no game files (test server)"
+  elif [ ! -f "$GAME/.unzipped" ]; then
     curl -fsS --retry 3 -o /srv/rising2/Game.zip "$GAME_ZIP_URL" || fail "download Game.zip"
     python3 -m zipfile -e /srv/rising2/Game.zip "$GAME" || fail "unzip Game.zip"
     rm -f /srv/rising2/Game.zip && touch "$GAME/.unzipped"

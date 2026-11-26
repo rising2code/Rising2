@@ -21,12 +21,12 @@ const [stepArg, action = "deploy"] = process.argv.slice(2);
 const ids = fs.readdirSync(STEPS).filter((d) => fs.existsSync(path.join(STEPS, d, "step.mjs"))).sort();
 if (!stepArg || stepArg === "list") {
   console.log("Steps, in order (each: deploy | undeploy | check):\n");
-  for (const id of ids) console.log(`  ${id.padEnd(26)} ${(await import(`./steps/${id}/step.mjs`)).default.title}`);
+  for (const id of ids) console.log(`  ${id.padEnd(31)} ${(await import(`./steps/${id}/step.mjs`)).default.title}`);
   process.exit(0);
 }
 if (stepArg === "token") { console.log(randomBytes(32).toString("hex")); process.exit(0); }
 
-const id = ids.find((d) => d === stepArg || d.replace(/^\d+-/, "") === stepArg);
+const id = ids.find((d) => d === stepArg || d.replace(/^\d+[a-z]?-/, "") === stepArg);
 if (!id) { console.error(`unknown step "${stepArg}" - one of: ${ids.join(", ")}`); process.exit(2); }
 const step = (await import(`./steps/${id}/step.mjs`)).default;
 step.id = id;

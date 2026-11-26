@@ -15,6 +15,8 @@ export const DISCORD_API = () => process.env.DISCORD_API_BASE || "https://discor
 export const F = {
   domain: { re: /^(?!https?:)[a-z0-9-]+(\.[a-z0-9-]+)+$/, shape: "a bare domain: rising2.net (no https://, no slash)" },
   url: { re: /^https?:\/\/\S+$/, shape: "a full URL: https://..." },
+  urlOrNone: { re: /^(https?:\/\/\S+|none)$/, shape: "a full URL: https://..., or none" },
+  sshKey: { re: /^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp\d+) [A-Za-z0-9+/]+=* ?\S*$/, shape: "one public key line: ssh-ed25519 AAAAC3Nza... you@pc (the .pub file, never the private key)" },
   cfToken: { re: /^[\w-]{35,}$/, shape: "~40 characters of letters, digits, - and _ (no prefix, not the Global API Key)" },
   hex32: { re: /^[0-9a-f]{32}$/, shape: "32 hex characters, e.g. 023e105f4ecef8ad9ca31a8372d0c353" },
   hex64: { re: /^[0-9a-f]{64}$/, shape: "64 hex characters" },
@@ -220,6 +222,35 @@ export function wrangler(args, { token, account, cwd = BUILD } = {}) {
     env: { ...process.env, CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: account, WRANGLER_SEND_METRICS: "false", CI: "1" } });
   if (r.status !== 0) throw new Error(`${shown} failed: ${(r.stderr || r.stdout || "").trim().split("\n").slice(-3).join(" ")}`);
   return r.stdout;
+}
+
+// The VM's two files in R2 (steps 05a test / 05b real write the same keys: the last one run wins).
+export const SERVER_KEYS = ["server/docker-compose.yml", "server/.env"];
+
+// files: { "server/docker-compose.yml": localPath, "server/.env": localPath }. Uploads, then reads
+// each back and compares, so "uploaded" means it's really there.
+export function putServerFiles(E, R, files, label) {
+  const w = { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID };
+  for (const [key, file] of Object.entries(files)) {
+    wrangler(["r2", "object", "put", `${E.R2_BUCKET}/${key}`, "--file", file, "--remote"], w);
+    if (!DRY) {
+      const back = path.join(BUILD, "readback");
+      wrangler(["r2", "object", "get", `${E.R2_BUCKET}/${key}`, "--file", back, "--remote"], w);
+      const same = fs.readFileSync(back).equals(fs.readFileSync(file));
+      fs.rmSync(back);
+      if (!same) { R.fail(key, "uploaded, but what R2 returns differs"); continue; }
+    }
+    R.ok(key, `${label}: ${path.basename(file)} (${fs.statSync(file).size} bytes)`);
+  }
+}
+
+// Removes only the two server/ files - never the saved game state (configs_sync/) or rate-limit marks.
+export function deleteServerFiles(E, R) {
+  const w = { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID };
+  for (const key of SERVER_KEYS) {
+    try { wrangler(["r2", "object", "delete", `${E.R2_BUCKET}/${key}`, "--remote"], w); R.ok(key, "deleted"); }
+    catch (e) { R.warn(key, e.message); }
+  }
 }
 
 export function copyDir(from, to, skip = ["node_modules", ".wrangler", ".dev.vars", "server.env", "README.md"]) {

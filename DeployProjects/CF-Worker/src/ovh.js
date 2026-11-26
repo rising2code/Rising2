@@ -28,7 +28,9 @@ export async function createInstance(env, onCreated, onFlavorFailed) {
   const userData = CLOUD_INIT
     .replaceAll("__WORKER_URL__", `${env.PUBLIC_URL}/api`)
     .replaceAll("__TOKEN__", env.SHARED_TOKEN)
-    .replaceAll("__GAME_ZIP_URL__", env.GAME_ZIP_URL);
+    .replaceAll("__GAME_ZIP_URL__", env.GAME_ZIP_URL || "none")
+    // only what a public key line can hold, so the shell line in cloud_init.sh stays safe
+    .replaceAll("__SSH_PUBKEY__", (env.SSH_PUBLIC_KEY || "").replace(/[^\w+/=@.: -]/g, "").trim());
 
   let lastErr;
   for (const region of regions) {

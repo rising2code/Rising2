@@ -16,7 +16,7 @@ if ($Rebuild -or $LASTEXITCODE -ne 0) { docker build -t $image $here; if ($LASTE
 
 $run = @("run", "--rm", "-v", "${root}:/app:ro", "-v", "${here}/out:/out")
 if ($Step -notin @("list", "token")) {
-  $dir = Get-ChildItem (Join-Path $here "steps") -Directory | Where-Object { $_.Name -eq $Step -or $_.Name -match "^\d+-$([regex]::Escape($Step))$" } | Select-Object -First 1
+  $dir = Get-ChildItem (Join-Path $here "steps") -Directory | Where-Object { $_.Name -eq $Step -or $_.Name -match "^\d+[a-z]?-$([regex]::Escape($Step))$" } | Select-Object -First 1
   if (-not $dir) { Write-Error "no step '$Step' - run: .\Deploy\step.ps1 list" }
   $envFile = Join-Path $dir.FullName "step.env"
   if (-not (Test-Path $envFile)) {

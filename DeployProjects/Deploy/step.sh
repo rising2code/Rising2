@@ -12,7 +12,7 @@ if [ "${REBUILD:-}" = 1 ] || ! docker image inspect "$image" >/dev/null 2>&1; th
 
 args=(run --rm -v "$root:/app:ro" -v "$here/out:/out")
 if [ "$step" != list ] && [ "$step" != token ]; then
-  dir=$(cd "$here/steps" && ls -d */ | tr -d / | grep -E "^($step|[0-9]+-$step)$" | head -1 || true)
+  dir=$(cd "$here/steps" && ls -d */ | tr -d / | grep -E "^($step|[0-9]+[a-z]?-$step)$" | head -1 || true)
   [ -n "$dir" ] || { echo "no step '$step' - run: $0 list"; exit 1; }
   env="$here/steps/$dir/step.env"
   [ -f "$env" ] || { echo "Missing $env - cp $here/steps/$dir/step.env.example $env and fill it in"; exit 1; }

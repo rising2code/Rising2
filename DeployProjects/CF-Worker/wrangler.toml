@@ -25,7 +25,8 @@ OVH_REGION = "DE1,GRA11"            # tried in order: Frankfurt (best ping from 
 OVH_FLAVORS = "c3-8,b3-16"          # tried in order (the first one may be out of stock)
 OVH_IMAGE = "Debian 12 - Docker,Debian 12"   # first one found in the region (Docker preinstalled saves 1-2 min)
 VM_NAME = "rising2-lazy"
-GAME_ZIP_URL = "https://rising2-game.s3.gra.io.cloud.ovh.net/Game.zip"
+GAME_ZIP_URL = "https://rising2-game.s3.gra.io.cloud.ovh.net/Game.zip"   # "none" = no game files (test server)
+SSH_PUBLIC_KEY = ""                 # optional: "ssh-ed25519 AAAA... you@pc" is let in on every VM (user debian)
 START_COOLDOWN_HOURS = "20"         # one "Start" per IP / Discord user per this many hours
 DISCORD_ADMIN_ROLE = ""             # role id: no cooldown, may /stop
 # Monthly OVH budget (EUR, whole project): no Start once this month's cost so far, or OVH's

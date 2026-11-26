@@ -4,7 +4,7 @@ import path from "node:path";
 import { F, SRC, BUILD, DRY, copyDir, wrangler, waitFor } from "../../lib.mjs";
 import { S } from "../../specs.mjs";
 
-const VARS = ["OVH_ENDPOINT", "OVH_REGION", "OVH_FLAVORS", "OVH_IMAGE", "VM_NAME", "GAME_ZIP_URL", "START_COOLDOWN_HOURS",
+const VARS = ["OVH_ENDPOINT", "OVH_REGION", "OVH_FLAVORS", "OVH_IMAGE", "VM_NAME", "GAME_ZIP_URL", "SSH_PUBLIC_KEY", "START_COOLDOWN_HOURS",
   "DISCORD_ADMIN_ROLE", "MAX_COST_CURRENT", "MAX_COST_FORECAST", "DNS_TTL"];
 const SECRETS = ["SHARED_TOKEN", "TURNSTILE_SECRET", "CF_DNS_TOKEN", "CF_ZONE_ID", "OVH_APP_KEY", "OVH_APP_SECRET", "OVH_CONSUMER_KEY",
   "OVH_PROJECT", "DISCORD_PUBLIC_KEY", "DISCORD_WEBHOOK_URL"];
@@ -40,7 +40,8 @@ export default {
     { name: "OVH_FLAVORS", f: F.flavors, required: true, def: "c3-8,b3-16", about: "VM sizes to try, in order" },
     S.OVH_IMAGE,
     S.VM_NAME,
-    { name: "GAME_ZIP_URL", f: F.url, required: true, about: "Game.zip the VM downloads (root holds bin/ and data/)" },
+    { name: "GAME_ZIP_URL", f: F.urlOrNone, required: true, about: "Game.zip the VM downloads (root holds bin/ and data/); none = no game files (test server)" },
+    { name: "SSH_PUBLIC_KEY", f: F.sshKey, about: "your public SSH key: every VM lets it in for user debian (logs, debugging)" },
     { name: "START_COOLDOWN_HOURS", f: F.number, required: true, def: "20", about: "one Start per IP / Discord user per this many hours" },
     { name: "DISCORD_ADMIN_ROLE", f: F.snowflake, about: "Discord role id: no cooldown, may /stop" },
     { name: "MAX_COST_CURRENT", f: F.number, required: true, def: "15", about: "no Start once this month's OVH cost reaches this (EUR)" },

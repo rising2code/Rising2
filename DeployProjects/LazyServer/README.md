@@ -8,7 +8,12 @@ already has (cloud-init needs it); the only thing installed is Docker.
 | [cloud_init.sh](cloud_init.sh) | bundled into the worker, sent as OVH userData; copies itself to `/opt/rising2/r2.sh` |
 | [docker-compose.yml](docker-compose.yml) | R2 `server/docker-compose.yml` -> `/opt/rising2/` |
 | `server.env` (from [server.env.example](server.env.example)) | R2 `server/.env` -> `/opt/rising2/.env` |
-| [upload.sh](upload.sh) | run by you: pushes the two files above to R2 |
+| [upload.sh](upload.sh) | run by you: pushes the two files above to R2 (or Deploy step 05b) |
+| [test-server/](test-server/) | a stand-in compose (hello page + Dozzle logs) to test the VM loop: Deploy step 05a |
+
+The VM has no SSH key unless the worker has `SSH_PUBLIC_KEY`: then `cloud_init.sh` lets that one key in
+for the image's default user (`debian`) before anything else, so even a failed start can be looked at.
+`GAME_ZIP_URL=none` skips the game files.
 
 ## On the VM
 

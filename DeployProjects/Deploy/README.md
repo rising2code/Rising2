@@ -53,7 +53,8 @@ The code is mounted, not baked in: edit and rerun, no rebuild.
 |---|---|---|---|---|
 | 02 | `ovh-setup` | the region(s) enabled (default `OVH_REGION=DE1,GRA11`, tried in order); checks flavors, image(s) (default `Debian 12 - Docker`, then `Debian 12`), cost API | `OVH_PROJECT` (by hand) | - |
 | 03 | `cloudflare-dns` | `ip.<domain>` (A, grey) and `*.<domain>` -> ip | - | `CF_ZONE_ID`, `CF_ACCOUNT_ID` |
-| 05 | `cloudflare-r2-populate` | `server/docker-compose.yml` + `server/.env` in R2, from `../LazyServer` | `CF_ACCOUNT_ID` | - |
+| 05a | `cloudflare-r2-test-server` | the **test** server as the VM's compose: hello page + Dozzle logs (`../LazyServer/test-server`) | `CF_ACCOUNT_ID` | - |
+| 05b | `cloudflare-r2-populate` | the **real** server: `../LazyServer/docker-compose.yml` + `server.env` (replaces 05a) | `CF_ACCOUNT_ID` | - |
 | 06 | `cloudflare-turnstile` | the captcha widget | `CF_ACCOUNT_ID` | `TURNSTILE_SITEKEY`, `TURNSTILE_SECRET` |
 | 07 | `cloudflare-pages` | the landing page, `<domain>` + `www` and their DNS | `CF_ACCOUNT_ID`, `TURNSTILE_SITEKEY` | - |
 | 08 | `cloudflare-worker` | the worker on `<domain>/api/*` + its secrets | `CF_ACCOUNT_ID`, `CF_ZONE_ID`, `TURNSTILE_SECRET`, `OVH_PROJECT`, `DISCORD_PUBLIC_KEY` (optional) | - |
@@ -103,7 +104,18 @@ Optional in any `step.env`: `WAIT_MIN` (how long to wait for the provider) and `
 
 ## What undeploy keeps
 
-* **05** removes only its two files, never the saved game state (`configs_sync/`); the bucket itself is yours to manage.
+* **05a / 05b** write (and remove) the same two files, `server/docker-compose.yml` and `server/.env`: whichever ran last
+  is what the next VM starts. They never touch the saved game state (`configs_sync/`); the bucket is yours to manage.
+
+## Testing the VM loop before the game server is ready
+
+1. **05a** uploads the test server; in **08** set `GAME_ZIP_URL=none` (skips the 1.3 GB download) and
+   `SSH_PUBLIC_KEY` to your public key (the `.pub` file's one line).
+2. Start a VM (10, Discord `/start` or the site). It boots, points `ip.<domain>` at itself, serves a
+   "Rising2 test server" page on `http://ip.<domain>/`, and tears itself down after ~30 min with no players.
+3. Logs of every container: `ssh -L 8080:localhost:8080 debian@ip.<domain>`, then open http://localhost:8080 (Dozzle).
+   The VM's own logs: `sudo cat /var/log/rising2-init.log`, `journalctl -t rising2`.
+4. When the real compose is ready: **05b**, and `GAME_ZIP_URL` back to the real zip in **08**.
 * **10** asks the worker to stop the VM and, if it doesn't go within 10 min, deletes it through the
   OVH API, so a broken test can't keep billing.
 

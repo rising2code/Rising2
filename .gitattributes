@@ -1,0 +1,4 @@
+# Files that run or are read on Linux keep LF on every checkout (core.autocrlf=true on Windows would
+# turn them into CRLF, and bash / docker compose on the VM break on the \r).
+*.sh                         text eol=lf
+DeployProjects/LazyServer/** text eol=lf

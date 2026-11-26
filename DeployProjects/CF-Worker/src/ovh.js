@@ -26,6 +26,7 @@ export async function createInstance(env, onCreated, onFlavorFailed) {
   const regions = env.OVH_REGION.split(",").map((s) => s.trim()).filter(Boolean);
   const multi = regions.length > 1;
   const userData = CLOUD_INIT
+    .replaceAll("\r\n", "\n") // a Windows checkout's CRLF would break bash on the VM
     .replaceAll("__WORKER_URL__", `${env.PUBLIC_URL}/api`)
     .replaceAll("__TOKEN__", env.SHARED_TOKEN)
     .replaceAll("__GAME_ZIP_URL__", env.GAME_ZIP_URL || "none")

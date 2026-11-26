@@ -245,8 +245,28 @@ export const SERVER_KEYS = ["server/docker-compose.yml", "server/.env"];
 
 // files: { "server/docker-compose.yml": localPath, "server/.env": localPath }. Uploads, then reads
 // each back and compares, so "uploaded" means it's really there.
+// Keeps the first and last 3 characters of a value, the rest becomes * (short values: all *).
+export const maskValue = (v) => (v.length <= 6 ? "*".repeat(v.length) : v.slice(0, 3) + "*".repeat(v.length - 6) + v.slice(-3));
+
+// A file's text for the console with every value masked: "KEY=value" in .env files, "key: value" in
+// YAML. Comments, blank lines and lines without a value stay as they are.
+export function maskedText(text, kind) {
+  return text.split(/\r?\n/).map((line) => {
+    if (/^\s*(#|$)/.test(line)) return line;
+    const m = kind === "env" ? line.match(/^(\s*[\w.-]+\s*=\s*)(.*?)(\s*)$/) : line.match(/^(\s*(?:-\s+)?["']?[\w.-]+["']?:\s+)(.*?)(\s*)$/);
+    return m && m[2] ? m[1] + maskValue(m[2]) + m[3] : line;
+  }).join("\n");
+}
+
 export async function putServerFiles(E, R, files, label) {
   await checkR2Bucket(E, R);
+  // sanity check of what the VM will get, values masked
+  for (const [key, file] of Object.entries(files)) {
+    const kind = key.endsWith(".env") ? "env" : "yml";
+    console.log(`\n----- ${key}  (from ${path.basename(file)}, values masked)`);
+    console.log(maskedText(fs.readFileSync(file, "utf8"), kind).split("\n").map((l) => `  ${l}`).join("\n"));
+    console.log(`----- end of ${key}\n`);
+  }
   const w = { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID };
   for (const [key, file] of Object.entries(files)) {
     wrangler(["r2", "object", "put", `${E.R2_BUCKET}/${key}`, "--file", file], w);

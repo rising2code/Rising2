@@ -12,7 +12,14 @@ if [ "${REBUILD:-}" = 1 ] || ! docker image inspect "$image" >/dev/null 2>&1; th
 
 args=(run --rm -v "$root:/app:ro" -v "$here/out:/out")
 if [ "$step" != list ] && [ "$step" != token ]; then
-  dir=$(cd "$here/steps" && ls -d */ | tr -d / | grep -E "^($step|[0-9]+[a-z]?-$step)$" | head -1 || true)
+  # exact name, name without its number, or else a prefix that matches only one step ("06", "05a")
+  all=$(cd "$here/steps" && for d in */; do [ -f "$d/step.mjs" ] && echo "${d%/}"; done)
+  dir=$(grep -xF "$step" <<<"$all" || grep -E "^[0-9]+[a-z]?-" <<<"$all" | awk -v s="$step" '{ n=$0; sub(/^[0-9]+[a-z]?-/, "", n); if (n == s) print $0 }' | head -1 || true)
+  if [ -z "$dir" ]; then
+    hits=$(awk -v s="$step" '{ n=$0; sub(/^[0-9]+[a-z]?-/, "", n); if (index($0, s) == 1 || index(n, s) == 1) print $0 }' <<<"$all")
+    if [ "$(grep -c . <<<"$hits")" -gt 1 ]; then echo "'$step' matches more than one step: $(echo $hits | tr ' ' ',')"; exit 1; fi
+    dir=$hits
+  fi
   [ -n "$dir" ] || { echo "no step '$step' - run: $0 list"; exit 1; }
   env="$here/steps/$dir/step.env"
   [ -f "$env" ] || { echo "Missing $env - cp $here/steps/$dir/step.env.example $env and fill it in"; exit 1; }

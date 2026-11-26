@@ -26,7 +26,14 @@ if (!stepArg || stepArg === "list") {
 }
 if (stepArg === "token") { console.log(randomBytes(32).toString("hex")); process.exit(0); }
 
-const id = ids.find((d) => d === stepArg || d.replace(/^\d+[a-z]?-/, "") === stepArg);
+// exact name, name without its number, or else a prefix that matches only one step ("06", "05a")
+const bare = (d) => d.replace(/^\d+[a-z]?-/, "");
+let id = ids.find((d) => d === stepArg || bare(d) === stepArg);
+if (!id) {
+  const hits = ids.filter((d) => d.startsWith(stepArg) || bare(d).startsWith(stepArg));
+  if (hits.length > 1) { console.error(`"${stepArg}" matches more than one step: ${hits.join(", ")}`); process.exit(2); }
+  id = hits[0];
+}
 if (!id) { console.error(`unknown step "${stepArg}" - one of: ${ids.join(", ")}`); process.exit(2); }
 const step = (await import(`./steps/${id}/step.mjs`)).default;
 step.id = id;

@@ -2,6 +2,7 @@
 #   .\Deploy\step.ps1 list
 #   .\Deploy\step.ps1 03-cloudflare-dns            # deploy
 #   .\Deploy\step.ps1 cloudflare-dns undeploy      # the number can be left out
+#   .\Deploy\step.ps1 06                           # or any start that matches only one step
 #   .\Deploy\step.ps1 cloudflare-dns check         # only validate its step.env
 #   .\Deploy\step.ps1 token                        # a new SHARED_TOKEN
 #   .\Deploy\step.ps1 -Rebuild list                # rebuild the image first
@@ -16,8 +17,16 @@ if ($Rebuild -or $LASTEXITCODE -ne 0) { docker build -t $image $here; if ($LASTE
 
 $run = @("run", "--rm", "-v", "${root}:/app:ro", "-v", "${here}/out:/out")
 if ($Step -notin @("list", "token")) {
-  $dir = Get-ChildItem (Join-Path $here "steps") -Directory | Where-Object { $_.Name -eq $Step -or $_.Name -match "^\d+[a-z]?-$([regex]::Escape($Step))$" } | Select-Object -First 1
-  if (-not $dir) { Write-Error "no step '$Step' - run: .\Deploy\step.ps1 list" }
+  # exact name, name without its number, or else a prefix that matches only one step ("06", "05a", "cloudflare-p")
+  $all = Get-ChildItem (Join-Path $here "steps") -Directory | Where-Object { Test-Path (Join-Path $_.FullName "step.mjs") }
+  $esc = [regex]::Escape($Step)
+  $dir = @($all | Where-Object { $_.Name -eq $Step -or $_.Name -match "^\d+[a-z]?-$esc$" }) | Select-Object -First 1
+  if (-not $dir) {
+    $hits = @($all | Where-Object { $_.Name -match "^$esc" -or $_.Name -match "^\d+[a-z]?-$esc" })
+    if ($hits.Count -gt 1) { Write-Host "'$Step' matches more than one step: $($hits.Name -join ', ')" -ForegroundColor Yellow; exit 1 }
+    $dir = $hits | Select-Object -First 1
+  }
+  if (-not $dir) { Write-Host "no step '$Step' - run: .\Deploy\step.ps1 list" -ForegroundColor Yellow; exit 1 }
   $envFile = Join-Path $dir.FullName "step.env"
   if (-not (Test-Path $envFile)) {
     Write-Host "Missing $envFile - copy step.env.example next to it and fill it in:" -ForegroundColor Yellow

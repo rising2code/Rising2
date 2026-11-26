@@ -5,7 +5,8 @@ import { S, ovhKey, ovhCreds } from "../../specs.mjs";
 export default {
   title: "OVH: enable the region(s), check flavors / image / cost API",
   manual: ["the Public Cloud project created in the OVH panel (Public Cloud > Create a project); its id goes in OVH_PROJECT",
-    "an OVH key with GET /auth/currentCredential and GET/POST/DELETE /cloud/project/* (POST enables a region)"],
+    "the deploy OVH key, made on your OVH site (ca.api.ovh.com/createToken/ for OVHcloud Canada, eu.api.ovh.com for EU) with: GET /auth/currentCredential, GET /cloud/project, GET/POST/DELETE /cloud/project/*",
+    "OVH_ENDPOINT = the same site (https://ca.api.ovh.com/1.0 or https://eu.api.ovh.com/1.0)"],
   waitMin: 10,
   env: [
     ...ovhKey("deploy"),

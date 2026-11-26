@@ -4,7 +4,8 @@ import { S, ovhCreds } from "../../specs.mjs";
 
 export default {
   title: "Test: start a real VM through the worker, then stop it (a few minutes of VM time)",
-  manual: ["every step before this one done", "the VM's files in R2 (05) and Game.zip at GAME_ZIP_URL"],
+  manual: ["every step before this one done", "the VM's files in R2 (05) and Game.zip at GAME_ZIP_URL",
+    "the deploy OVH key (same as step 02) and OVH_ENDPOINT of its site"],
   waitMin: 25,
   env: [
     S.DOMAIN,

@@ -15,6 +15,35 @@ The code is mounted, not baked in: edit and rerun, no rebuild.
 
 * **OVH project**: Public Cloud > Create a project in the OVH panel. Its id (32 hex, under its name and in
   the page URL) is `OVH_PROJECT` in steps 02, 08 and 10.
+* **OVH API keys**: two keys, made on **your account's OVH site** (`createToken` page below). A key only
+  works on the site that made it, and `OVH_ENDPOINT` must be that site:
+
+  | Your console is | Make keys at | `OVH_ENDPOINT` |
+  |---|---|---|
+  | `console.ca.ovhcloud.com` (OVHcloud Canada) | https://ca.api.ovh.com/createToken/ | `https://ca.api.ovh.com/1.0` |
+  | `www.ovh.com/manager` / EU | https://eu.api.ovh.com/createToken/ | `https://eu.api.ovh.com/1.0` |
+
+  Validity: Unlimited. One rule per line (method in the dropdown, path in the box, "+" for the next):
+
+  **Deploy key** (steps 02 and 10):
+  ```
+  GET     /auth/currentCredential
+  GET     /cloud/project
+  GET     /cloud/project/*
+  POST    /cloud/project/*
+  DELETE  /cloud/project/*
+  ```
+  **Worker key** (step 08; the worker on Cloudflare uses it). Write your real project id where it says
+  `PROJECT_ID` - OVH matches the text literally, a leftover placeholder makes every call "not allowed":
+  ```
+  GET     /cloud/project/PROJECT_ID/*
+  POST    /cloud/project/PROJECT_ID/instance
+  DELETE  /cloud/project/PROJECT_ID/instance/*
+  ```
+  Leave "Restricted IPs" empty on the worker key (Cloudflare's addresses change). Each key's three values
+  (Application Key, Application Secret, Consumer Key) go together into `OVH_APP_KEY`, `OVH_APP_SECRET`,
+  `OVH_CONSUMER_KEY` of its steps - never mix values from two keys.
+  OVH bills in your account's currency (CAD for OVHcloud Canada): set `MAX_COST_*` in that currency.
 * **R2 bucket**: dashboard > R2 > Create bucket (`R2_BUCKET`), then on it Settings > Object lifecycle rules:
   prefix `ratelimit/`, delete after 1 day (keeps the rate-limit marks from piling up).
 

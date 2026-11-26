@@ -15,7 +15,7 @@ export default {
     "07-cloudflare-pages done (the worker's route needs <domain> to be on Cloudflare's proxy)",
     "a deploy token with Account > Workers Scripts Edit and Zone > Workers Routes Edit",
     "a second, DNS-only token for the worker itself (Zone > DNS Edit on this zone): CF_DNS_TOKEN",
-    "a worker OVH key, limited to the project: GET /cloud/project/<id>/*, POST /cloud/project/<id>/instance, DELETE /cloud/project/<id>/instance/*",
+    "a worker OVH key, made on your OVH site (ca/eu.api.ovh.com/createToken/), rules with your REAL project id typed in place of PROJECT_ID: GET /cloud/project/PROJECT_ID/*, POST /cloud/project/PROJECT_ID/instance, DELETE /cloud/project/PROJECT_ID/instance/*",
     "SHARED_TOKEN: make one (openssl rand -hex 32) and keep it: 10-test-loop needs the same value",
   ],
   waitMin: 10,

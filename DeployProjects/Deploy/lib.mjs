@@ -182,6 +182,9 @@ export async function checkOvhKey(ovh, R, endpoint, needs = []) {
   // an OVH rule path is literal text where * matches anything (also across /)
   const esc = (t) => t.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
   const rules = (cred.rules || []).map((r) => ({ method: r.method, re: new RegExp(`^${r.path.split("*").map(esc).join(".*")}$`) }));
+  if ((cred.rules || []).some((r) => /[<>]|PROJECT_ID/.test(r.path))) {
+    R.fail("OVH key", `a rule still has a placeholder (${cred.rules.filter((r) => /[<>]|PROJECT_ID/.test(r.path)).map((r) => r.path).join(", ")}): OVH matches it literally - make a new key with your real project id in the rules`);
+  }
   const lacking = needs.filter(([m, p]) => !rules.some((r) => r.method === m && r.re.test(p))).map(([m, p]) => `${m} ${p}`);
   const exp = cred.expiration ? `, expires ${cred.expiration}` : ", no expiry";
   const ruleList = (cred.rules || []).map((r) => `${r.method} ${r.path}`).join(", ");

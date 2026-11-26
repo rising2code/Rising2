@@ -44,7 +44,7 @@ Secrets (`npx wrangler secret put <NAME>`):
 | `SHARED_TOKEN` | `openssl rand -hex 32` |
 | `TURNSTILE_SECRET` | Cloudflare dashboard -> Turnstile -> widget for rising2.net |
 | `CF_API_TOKEN`, `CF_ZONE_ID` | API token with *Zone.DNS: Edit* on rising2.net |
-| `OVH_APP_KEY`, `OVH_APP_SECRET`, `OVH_CONSUMER_KEY` | https://eu.api.ovh.com/createToken/ with `GET/POST/DELETE /cloud/project/*` |
+| `OVH_APP_KEY`, `OVH_APP_SECRET`, `OVH_CONSUMER_KEY` | a key made on your account's OVH site (`ca.api.ovh.com/createToken/` for OVHcloud Canada, `eu.api.ovh.com/createToken/` for EU) with `GET /cloud/project/PROJECT_ID/*`, `POST /cloud/project/PROJECT_ID/instance`, `DELETE /cloud/project/PROJECT_ID/instance/*` (your real project id, see [Deploy](../Deploy/README.md)); set `OVH_ENDPOINT` to the same site |
 | `OVH_PROJECT` | Public Cloud project id |
 | `DISCORD_PUBLIC_KEY` | Discord developer portal -> app -> General |
 | `DISCORD_WEBHOOK_URL` | optional: channel webhook that gets every status line |

@@ -1,11 +1,11 @@
 // OVH project setup: the VM's region enabled, its flavors + image available, the cost API readable.
-import { F, ovhApi, waitFor, sumPrices } from "../../lib.mjs";
+import { F, ovhApi, waitFor, sumPrices, checkOvhKey } from "../../lib.mjs";
 import { S, ovhKey, ovhCreds } from "../../specs.mjs";
 
 export default {
   title: "OVH: enable the region(s), check flavors / image / cost API",
   manual: ["the Public Cloud project created in the OVH panel (Public Cloud > Create a project); its id goes in OVH_PROJECT",
-    "an OVH key with GET/POST/DELETE /cloud/project/* (POST enables a region)"],
+    "an OVH key with GET /auth/currentCredential and GET/POST/DELETE /cloud/project/* (POST enables a region)"],
   waitMin: 10,
   env: [
     ...ovhKey("deploy"),
@@ -18,6 +18,7 @@ export default {
   async deploy(E, R) {
     const ovh = ovhApi(ovhCreds(E));
     const P = `/cloud/project/${E.OVH_PROJECT}`;
+    await checkOvhKey(ovh, R, E.OVH_ENDPOINT, [["GET", `${P}/region`], ["POST", `${P}/region`], ["GET", `${P}/usage/current`]]);
     const regions = E.OVH_REGION.split(",").map((s) => s.trim()).filter(Boolean);
     const names = E.OVH_FLAVORS.split(",").map((s) => s.trim());
     let usable = 0;
@@ -63,6 +64,7 @@ export default {
   async undeploy(E, R) {
     const ovh = ovhApi(ovhCreds(E));
     const P = `/cloud/project/${E.OVH_PROJECT}`;
+    await checkOvhKey(ovh, R, E.OVH_ENDPOINT, [["GET", `${P}/instance`], ["DELETE", `${P}/instance/x`]]);
     const vms = (await ovh("GET", `${P}/instance`)).filter((v) => v.name === E.VM_NAME);
     for (const v of vms) await ovh("DELETE", `${P}/instance/${v.id}`);
     if (vms.length) {

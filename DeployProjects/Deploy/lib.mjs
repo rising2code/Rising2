@@ -161,6 +161,37 @@ export function ovhApi({ endpoint, appKey, appSecret, consumerKey }) {
   };
 }
 
+// Checks an OVH key before a step uses it: valid on this endpoint, validated, not expired, and
+// rules covering `needs` ([method, example path]). Turns OVH's terse errors into what to fix.
+// Throws (stops the step) when the key can't be used.
+export async function checkOvhKey(ovh, R, endpoint, needs = []) {
+  let cred;
+  try {
+    cred = await ovh("GET", "/auth/currentCredential");
+  } catch (e) {
+    const m = e.message.toLowerCase();
+    const why =
+      m.includes("application key is invalid") ? `OVH doesn't know this Application Key on ${endpoint}. Check: (1) OVH_APP_KEY is the "Application Key" (16 characters), not the name or the secret; (2) the key was made on the same site as OVH_ENDPOINT (eu.api.ovh.com vs ca.api.ovh.com / api.us.ovhcloud.com); (3) the key wasn't deleted or remade - a new key changes all three values` :
+      m.includes("invalid signature") ? "the Application Key is known but OVH_APP_SECRET doesn't match it (copy the \"Application Secret\" of the same key)" :
+      m.includes("credential") || m.includes("consumer") ? "OVH_CONSUMER_KEY is wrong, expired or was never validated (copy the \"Consumer Key\" shown with the same key)" :
+      m.includes("not been granted") ? "the key works but has no rule for GET /auth/currentCredential - add it to the key" :
+      "see the message";
+    R.fail("OVH key", `${e.message} -> ${why}`);
+    throw new Error("the OVH key can't be used - fix it in step.env and rerun");
+  }
+  // an OVH rule path is literal text where * matches anything (also across /)
+  const esc = (t) => t.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+  const rules = (cred.rules || []).map((r) => ({ method: r.method, re: new RegExp(`^${r.path.split("*").map(esc).join(".*")}$`) }));
+  const lacking = needs.filter(([m, p]) => !rules.some((r) => r.method === m && r.re.test(p))).map(([m, p]) => `${m} ${p}`);
+  const exp = cred.expiration ? `, expires ${cred.expiration}` : ", no expiry";
+  const ruleList = (cred.rules || []).map((r) => `${r.method} ${r.path}`).join(", ");
+  if (cred.status !== "validated") R.fail("OVH key", `status "${cred.status}" - the key isn't usable (validate it, or make a new one)`);
+  else if (lacking.length) R.fail("OVH key", `valid${exp}, but its rules (${ruleList}) don't allow: ${lacking.join(", ")}`);
+  else R.ok("OVH key", `valid${exp}; rules: ${ruleList}`);
+  if (cred.status !== "validated" || lacking.length) throw new Error("the OVH key can't do what this step needs");
+  return cred;
+}
+
 export function sumPrices(node) {
   if (Array.isArray(node)) return node.reduce((a, n) => a + sumPrices(n), 0);
   if (!node || typeof node !== "object") return 0;

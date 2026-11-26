@@ -1,5 +1,5 @@
 // One real loop: start a VM through the worker, wait for "up", check DNS, stop it, wait until it's deleted.
-import { F, ovhApi, waitFor, sleep } from "../../lib.mjs";
+import { F, ovhApi, waitFor, sleep, checkOvhKey } from "../../lib.mjs";
 import { S, ovhCreds } from "../../specs.mjs";
 
 export default {
@@ -24,6 +24,7 @@ export default {
     const H = { authorization: `Bearer ${E.SHARED_TOKEN}` };
     const call = async (m, p) => { const r = await fetch(`${api}${p}`, { method: m, headers: H }); return { status: r.status, body: await r.json().catch(() => ({})) }; };
     const ovh = ovhApi(ovhCreds(E));
+    await checkOvhKey(ovh, R, E.OVH_ENDPOINT, [["GET", `/cloud/project/${E.OVH_PROJECT}/instance`], ["DELETE", `/cloud/project/${E.OVH_PROJECT}/instance/x`]]);
     const vmsNamed = async () => (await ovh("GET", `/cloud/project/${E.OVH_PROJECT}/instance`)).filter((v) => v.name === E.VM_NAME);
     const t0 = Date.now(), mins = () => ((Date.now() - t0) / 60e3).toFixed(1);
     let seen = Math.max(0, ...((await call("GET", "/status")).body.log || []).map((l) => l.t));

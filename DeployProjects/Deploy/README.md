@@ -11,14 +11,19 @@ thing, has its **own** `step.env` (nothing is shared between steps), and has:
 Everything runs in a small Docker image (node + wrangler), so nothing is installed on your machine.
 The code is mounted, not baked in: edit and rerun, no rebuild.
 
+## By hand first
+
+* **OVH project**: Public Cloud > Create a project in the OVH panel. Its id (32 hex, under its name and in
+  the page URL) is `OVH_PROJECT` in steps 02, 08 and 10.
+* **R2 bucket**: dashboard > R2 > Create bucket (`R2_BUCKET`), then on it Settings > Object lifecycle rules:
+  prefix `ratelimit/`, delete after 1 day (keeps the rate-limit marks from piling up).
+
 ## Steps
 
 | # | Step | Owns | Needs from earlier steps | Prints for later steps |
 |---|---|---|---|---|
-| 01 | `ovh-project` | the OVH Public Cloud project (finds it, or orders it with `OVH_CREATE_PROJECT=yes`) | - | `OVH_PROJECT` |
-| 02 | `ovh-setup` | the region enabled; checks flavors, image, cost API | `OVH_PROJECT` | - |
+| 02 | `ovh-setup` | the region(s) enabled (`OVH_REGION=DE1,GRA11` = tried in order); checks flavors, image, cost API | `OVH_PROJECT` (by hand) | - |
 | 03 | `cloudflare-dns` | `ip.<domain>` (A, grey) and `*.<domain>` -> ip | - | `CF_ZONE_ID`, `CF_ACCOUNT_ID` |
-| 04 | `cloudflare-r2-create` | the R2 bucket + the 1-day `ratelimit/` rule | `CF_ACCOUNT_ID` | - |
 | 05 | `cloudflare-r2-populate` | `server/docker-compose.yml` + `server/.env` in R2, from `../LazyServer` | `CF_ACCOUNT_ID` | - |
 | 06 | `cloudflare-turnstile` | the captcha widget | `CF_ACCOUNT_ID` | `TURNSTILE_SITEKEY`, `TURNSTILE_SECRET` |
 | 07 | `cloudflare-pages` | the landing page, `<domain>` + `www` and their DNS | `CF_ACCOUNT_ID`, `TURNSTILE_SITEKEY` | - |
@@ -69,10 +74,7 @@ Optional in any `step.env`: `WAIT_MIN` (how long to wait for the provider) and `
 
 ## What undeploy keeps
 
-* **01** deletes the VMs in the project, but not the project: deleting it is an account action
-  OVH confirms by email (the report says where in the panel).
-* **04** only deletes an **empty** bucket, so saved game state (`configs_sync/`) is never lost by accident;
-  **05** removes only its two files.
+* **05** removes only its two files, never the saved game state (`configs_sync/`); the bucket itself is yours to manage.
 * **10** asks the worker to stop the VM and, if it doesn't go within 10 min, deletes it through the
   OVH API, so a broken test can't keep billing.
 

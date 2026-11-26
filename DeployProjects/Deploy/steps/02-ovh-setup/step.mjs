@@ -3,8 +3,9 @@ import { F, ovhApi, waitFor, sumPrices } from "../../lib.mjs";
 import { S, ovhKey, ovhCreds } from "../../specs.mjs";
 
 export default {
-  title: "OVH: enable the region, check flavors / image / cost API",
-  manual: ["run 01-ovh-project first (it prints OVH_PROJECT)"],
+  title: "OVH: enable the region(s), check flavors / image / cost API",
+  manual: ["the Public Cloud project created in the OVH panel (Public Cloud > Create a project); its id goes in OVH_PROJECT",
+    "an OVH key with GET/POST/DELETE /cloud/project/* (POST enables a region)"],
   waitMin: 10,
   env: [
     ...ovhKey("deploy"),
@@ -17,25 +18,34 @@ export default {
   async deploy(E, R) {
     const ovh = ovhApi(ovhCreds(E));
     const P = `/cloud/project/${E.OVH_PROJECT}`;
-    const regions = await ovh("GET", `${P}/region`);
-    if (regions.includes(E.OVH_REGION)) R.ok("region", `${E.OVH_REGION} enabled`);
-    else {
-      R.info("region", `enabling ${E.OVH_REGION}...`);
-      await ovh("POST", `${P}/region`, { region: E.OVH_REGION });
-      await waitFor(`region ${E.OVH_REGION}`, async () => (await ovh("GET", `${P}/region`)).includes(E.OVH_REGION), { minutes: E.WAIT_MIN });
-      R.ok("region", `${E.OVH_REGION} enabled`);
-    }
-
-    // a region that was just enabled can list its flavors / images only after a while
+    const regions = E.OVH_REGION.split(",").map((s) => s.trim()).filter(Boolean);
     const names = E.OVH_FLAVORS.split(",").map((s) => s.trim());
-    const found = await waitFor(`flavors in ${E.OVH_REGION}`, async () => {
-      const fl = await ovh("GET", `${P}/flavor?region=${E.OVH_REGION}`);
-      const f = names.filter((n) => fl.some((x) => x.name === n));
-      return f.length ? f : null;
-    }, { minutes: E.WAIT_MIN });
-    R.ok("flavors", `${found.join(", ")} available${found.length < names.length ? ` (not: ${names.filter((n) => !found.includes(n)).join(", ")})` : ""}`);
-    await waitFor(`image "${E.OVH_IMAGE}"`, async () => (await ovh("GET", `${P}/image?region=${E.OVH_REGION}&osType=linux`)).some((i) => i.name === E.OVH_IMAGE), { minutes: E.WAIT_MIN });
-    R.ok("image", `"${E.OVH_IMAGE}" available`);
+    let usable = 0;
+    for (const region of regions) {
+      try {
+        if ((await ovh("GET", `${P}/region`)).includes(region)) R.ok(`${region}: region`, "enabled");
+        else {
+          R.info(`${region}: region`, "enabling...");
+          await ovh("POST", `${P}/region`, { region });
+          await waitFor(`region ${region}`, async () => (await ovh("GET", `${P}/region`)).includes(region), { minutes: E.WAIT_MIN });
+          R.ok(`${region}: region`, "enabled");
+        }
+        // a region that was just enabled can list its flavors / images only after a while
+        const found = await waitFor(`flavors in ${region}`, async () => {
+          const fl = await ovh("GET", `${P}/flavor?region=${region}`);
+          const f = names.filter((n) => fl.some((x) => x.name === n));
+          return f.length ? f : null;
+        }, { minutes: E.WAIT_MIN });
+        R.ok(`${region}: flavors`, `${found.join(", ")} available${found.length < names.length ? ` (not: ${names.filter((n) => !found.includes(n)).join(", ")})` : ""}`);
+        await waitFor(`image "${E.OVH_IMAGE}" in ${region}`, async () => (await ovh("GET", `${P}/image?region=${region}&osType=linux`)).some((i) => i.name === E.OVH_IMAGE), { minutes: E.WAIT_MIN });
+        R.ok(`${region}: image`, `"${E.OVH_IMAGE}" available`);
+        usable++;
+      } catch (e) {
+        // one region failing is a warning while another one works: the worker skips it
+        (regions.length > 1 ? R.warn : R.fail)(`${region}`, `${e.message}${regions.length > 1 ? " - the worker will skip it and try the next region" : ""}`);
+      }
+    }
+    if (regions.length > 1) (usable ? R.ok : R.fail)("regions", `${usable} of ${regions.length} usable, tried in order: ${regions.join(" -> ")}`);
 
     const [cur, fc] = await Promise.all([ovh("GET", `${P}/usage/current`), ovh("GET", `${P}/usage/forecast`)]);
     R.ok("cost API", `this month €${sumPrices(cur).toFixed(2)}, forecast €${sumPrices(fc).toFixed(2)}`);
@@ -54,6 +64,6 @@ export default {
       await waitFor(`${E.VM_NAME} to be deleted`, async () => !(await ovh("GET", `${P}/instance`)).some((v) => v.name === E.VM_NAME), { minutes: E.WAIT_MIN });
       R.ok("VMs", `deleted ${vms.length} × ${E.VM_NAME}`);
     } else R.ok("VMs", `no ${E.VM_NAME} running`);
-    R.info("region", `${E.OVH_REGION} left enabled (free)`);
+    R.info("regions", `${E.OVH_REGION} left enabled (free)`);
   },
 };

@@ -8,7 +8,8 @@ const KEYS = ["server/docker-compose.yml", "server/.env"];
 
 export default {
   title: "Cloudflare R2: upload the VM's docker-compose.yml + .env",
-  manual: ["04-cloudflare-r2-create done",
+  manual: ["the R2 bucket created by hand: dashboard > R2 > Create bucket (name = R2_BUCKET)",
+    "on it, a lifecycle rule: Settings > Object lifecycle rules > prefix ratelimit/, delete after 1 day",
     "LazyServer/server.env filled in (copy of server.env.example: the game servers' GameSpy accounts, image names)"],
   waitMin: 2,
   env: [S.CF_API_TOKEN("Account > Workers R2 Storage Edit"), S.CF_ACCOUNT_ID, S.R2_BUCKET],

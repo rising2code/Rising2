@@ -18,35 +18,46 @@ export async function deleteInstance(env, id) {
   return ovh(env, "DELETE", `${project(env)}/instance/${id}`);
 }
 
-// Create the VM with cloud_init.sh as its userData; tries OVH_FLAVORS in order (one may be
-// out of stock). onCreated / onFlavorFailed get a status line.
+// Create the VM with cloud_init.sh as its userData. OVH_REGION may be a list ("DE1,GRA11"):
+// every OVH_FLAVORS size is tried in the first region, then in the next one (a region or a size
+// can be out of stock). onCreated / onFlavorFailed get a status line.
 export async function createInstance(env, onCreated, onFlavorFailed) {
-  const region = env.OVH_REGION;
-  const [flavors, images] = await Promise.all([
-    ovh(env, "GET", `${project(env)}/flavor?region=${region}`),
-    ovh(env, "GET", `${project(env)}/image?region=${region}&osType=linux`),
-  ]);
-  const image = images.find((i) => i.name === env.OVH_IMAGE);
-  if (!image) throw new Error(`image ${env.OVH_IMAGE} not found in ${region}`);
-
+  const regions = env.OVH_REGION.split(",").map((s) => s.trim()).filter(Boolean);
+  const multi = regions.length > 1;
   const userData = CLOUD_INIT
     .replaceAll("__WORKER_URL__", `${env.PUBLIC_URL}/api`)
     .replaceAll("__TOKEN__", env.SHARED_TOKEN)
     .replaceAll("__GAME_ZIP_URL__", env.GAME_ZIP_URL);
 
   let lastErr;
-  for (const name of env.OVH_FLAVORS.split(",").map((s) => s.trim())) {
-    const flavor = flavors.find((f) => f.name === name);
-    if (!flavor) continue;
+  for (const region of regions) {
+    let flavors, image;
     try {
-      await ovh(env, "POST", `${project(env)}/instance`, {
-        name: env.VM_NAME, region, flavorId: flavor.id, imageId: image.id, userData, monthlyBilling: false,
-      });
-      await onCreated(`VM created (${name}), booting...`);
-      return;
+      const [fl, images] = await Promise.all([
+        ovh(env, "GET", `${project(env)}/flavor?region=${region}`),
+        ovh(env, "GET", `${project(env)}/image?region=${region}&osType=linux`),
+      ]);
+      flavors = fl;
+      image = images.find((i) => i.name === env.OVH_IMAGE);
+      if (!image) throw new Error(`image ${env.OVH_IMAGE} not found`);
     } catch (e) {
       lastErr = e;
-      await onFlavorFailed(`Flavor ${name} failed: ${e.message.slice(0, 120)}`);
+      await onFlavorFailed(`Region ${region} skipped: ${e.message.slice(0, 120)}`);
+      continue;
+    }
+    for (const name of env.OVH_FLAVORS.split(",").map((s) => s.trim())) {
+      const flavor = flavors.find((f) => f.name === name);
+      if (!flavor) continue;
+      try {
+        await ovh(env, "POST", `${project(env)}/instance`, {
+          name: env.VM_NAME, region, flavorId: flavor.id, imageId: image.id, userData, monthlyBilling: false,
+        });
+        await onCreated(`VM created (${multi ? `${region}, ` : ""}${name}), booting...`);
+        return;
+      } catch (e) {
+        lastErr = e;
+        await onFlavorFailed(`Flavor ${name}${multi ? ` in ${region}` : ""} failed: ${e.message.slice(0, 120)}`);
+      }
     }
   }
   throw lastErr || new Error("no flavor available");

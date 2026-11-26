@@ -16,9 +16,9 @@ export default {
 
   async deploy(E, R) {
     const dir = path.join(SRC, "LazyServer", "test-server");
-    putServerFiles(E, R, { "server/docker-compose.yml": path.join(dir, "docker-compose.yml"), "server/.env": path.join(dir, "test.env") }, "test server");
+    await putServerFiles(E, R, { "server/docker-compose.yml": path.join(dir, "docker-compose.yml"), "server/.env": path.join(dir, "test.env") }, "test server");
     R.info("next VM", "starts the test server; run 05b to switch back to the real one");
   },
 
-  async undeploy(E, R) { deleteServerFiles(E, R); },
+  async undeploy(E, R) { await deleteServerFiles(E, R); },
 };

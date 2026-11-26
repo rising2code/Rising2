@@ -80,15 +80,18 @@ export function makeReport(outDir, stepId, action) {
   fs.mkdirSync(outDir, { recursive: true });
   const steps = [], outputs = {};
   const ICON = { ok: "✅", warn: "⚠️", fail: "❌", skip: "⏭️", info: "ℹ️", todo: "✋" };
+  // the report file uses words: an old Windows console prints the icons as "?"
+  const WORD = { ok: "OK", warn: "WARN", fail: "FAIL", skip: "skip", info: "info", todo: "TO DO" };
   const write = () => {
     const count = (s) => steps.filter((x) => x.status === s).length;
     const summary = { ok: count("ok"), warn: count("warn"), fail: count("fail"), skip: count("skip"), todo: count("todo") };
     fs.writeFileSync(path.join(outDir, `${action}.report.json`), JSON.stringify({ step: stepId, action, when: new Date().toISOString(), summary, outputs: Object.keys(outputs), steps }, null, 2));
-    fs.writeFileSync(path.join(outDir, `${action}.report.md`), [
+    // UTF-8 with a BOM, so Windows PowerShell 5's Get-Content shows the icons (not "âœ…")
+    fs.writeFileSync(path.join(outDir, `${action}.report.md`), "﻿" + [
       `# ${stepId} - ${action}`, "", `${new Date().toISOString()}${DRY ? " - DRY RUN" : ""}`, "",
       `**${summary.ok} ok, ${summary.warn} warnings, ${summary.fail} failed, ${summary.todo} to do by hand**`, "",
       "| | Check | Detail |", "|---|---|---|",
-      ...steps.map((s) => `| ${ICON[s.status]} | ${s.name} | ${String(s.detail).replace(/\|/g, "\\|").replace(/\n/g, " ")} |`),
+      ...steps.map((s) => `| ${WORD[s.status]} | ${s.name} | ${String(s.detail).replace(/\|/g, "\\|").replace(/\n/g, " ")} |`),
       ...(Object.keys(outputs).length ? ["", "## Outputs (also in outputs.env)", "", ...Object.keys(outputs).map((k) => `- \`${k}\``)] : []), "",
     ].join("\n"));
     if (Object.keys(outputs).length) {
@@ -219,23 +222,37 @@ export function wrangler(args, { token, account, cwd = BUILD } = {}) {
   if (DRY) { console.log(`     (dry run) ${shown}`); return ""; }
   fs.mkdirSync(cwd, { recursive: true });
   const r = spawnSync("wrangler", args, { cwd, encoding: "utf8",
-    env: { ...process.env, CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: account, WRANGLER_SEND_METRICS: "false", CI: "1" } });
-  if (r.status !== 0) throw new Error(`${shown} failed: ${(r.stderr || r.stdout || "").trim().split("\n").slice(-3).join(" ")}`);
+    env: { ...process.env, CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: account, WRANGLER_SEND_METRICS: "false", CI: "1", NO_COLOR: "1", FORCE_COLOR: "0" } });
+  if (r.status !== 0) {
+    // wrangler ends with "Logs were written to ..." (a file that's gone with the container):
+    // keep its [ERROR] block and the lines after it, which say what actually went wrong
+    // (it also prints upgrade / "report this bug" chatter and colour codes: dropped)
+    const noise = /Logs were written to|newer version of Wrangler|out-of-date|npm install|npx wrangler|report this error|fallback value in non-interactive|create an issue at|^\s*[-─]+\s*$/i;
+    const all = `${r.stdout || ""}\n${r.stderr || ""}`.replace(/\x1b\[[0-9;]*m/g, "").split("\n").map((l) => l.trimEnd())
+      .filter((l) => l.trim() && !noise.test(l));
+    console.log(all.map((l) => `     | ${l}`).join("\n"));
+    let at = all.findIndex((l) => /\[ERROR\]/.test(l));
+    if (at < 0) at = all.findIndex((l) => /✘|\berror\b/i.test(l));
+    const why = (at >= 0 ? all.slice(at, at + 4) : all.slice(-4)).map((l) => l.trim().replace(/^✘\s*/, "")).join(" ");
+    throw new Error(`${shown} failed: ${why || `exit code ${r.status}, no output`}`);
+  }
   return r.stdout;
 }
 
 // The VM's two files in R2 (steps 05a test / 05b real write the same keys: the last one run wins).
+// (wrangler 3: r2 object commands go to Cloudflare by default; "--remote" is a wrangler 4 flag and fails here.)
 export const SERVER_KEYS = ["server/docker-compose.yml", "server/.env"];
 
 // files: { "server/docker-compose.yml": localPath, "server/.env": localPath }. Uploads, then reads
 // each back and compares, so "uploaded" means it's really there.
-export function putServerFiles(E, R, files, label) {
+export async function putServerFiles(E, R, files, label) {
+  await checkR2Bucket(E, R);
   const w = { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID };
   for (const [key, file] of Object.entries(files)) {
-    wrangler(["r2", "object", "put", `${E.R2_BUCKET}/${key}`, "--file", file, "--remote"], w);
+    wrangler(["r2", "object", "put", `${E.R2_BUCKET}/${key}`, "--file", file], w);
     if (!DRY) {
       const back = path.join(BUILD, "readback");
-      wrangler(["r2", "object", "get", `${E.R2_BUCKET}/${key}`, "--file", back, "--remote"], w);
+      wrangler(["r2", "object", "get", `${E.R2_BUCKET}/${key}`, "--file", back], w);
       const same = fs.readFileSync(back).equals(fs.readFileSync(file));
       fs.rmSync(back);
       if (!same) { R.fail(key, "uploaded, but what R2 returns differs"); continue; }
@@ -244,11 +261,33 @@ export function putServerFiles(E, R, files, label) {
   }
 }
 
+// Before wrangler touches R2: can this token see the bucket in this account? Gives a clear reason
+// (wrong token permission / account / bucket name) instead of wrangler's short failure.
+export async function checkR2Bucket(E, R) {
+  const cf = cfApi(E.CF_API_TOKEN);
+  let list;
+  try {
+    list = (await cf("GET", `/accounts/${E.CF_ACCOUNT_ID}/r2/buckets`)).buckets || [];
+  } catch (e) {
+    const why = e.status === 403 || /10000|auth/i.test(e.message)
+      ? "the token can't use R2 in this account: give it Account > Workers R2 Storage Edit (for this account), and check CF_ACCOUNT_ID"
+      : e.status === 404 ? "no such account: check CF_ACCOUNT_ID (03-cloudflare-dns prints it)" : "see the message";
+    R.fail("R2 access", `${e.message} -> ${why}`);
+    throw new Error("can't reach R2 with this token / account");
+  }
+  if (!list.some((b) => b.name === E.R2_BUCKET)) {
+    R.fail("R2 bucket", `"${E.R2_BUCKET}" not found in this account (buckets: ${list.map((b) => b.name).join(", ") || "none"}) - create it, or fix R2_BUCKET`);
+    throw new Error("bucket not found");
+  }
+  R.ok("R2 bucket", `${E.R2_BUCKET} found, the token can use it`);
+}
+
 // Removes only the two server/ files - never the saved game state (configs_sync/) or rate-limit marks.
-export function deleteServerFiles(E, R) {
+export async function deleteServerFiles(E, R) {
+  await checkR2Bucket(E, R);
   const w = { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID };
   for (const key of SERVER_KEYS) {
-    try { wrangler(["r2", "object", "delete", `${E.R2_BUCKET}/${key}`, "--remote"], w); R.ok(key, "deleted"); }
+    try { wrangler(["r2", "object", "delete", `${E.R2_BUCKET}/${key}`], w); R.ok(key, "deleted"); }
     catch (e) { R.warn(key, e.message); }
   }
 }

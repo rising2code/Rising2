@@ -22,8 +22,8 @@ export default {
     if (/change-me/.test(envText)) R.warn("server.env", "still has change-me passwords");
     if (/^R2_ADMIN_TOKEN=\s*$/m.test(envText)) R.warn("server.env", "R2_ADMIN_TOKEN is empty (make one: openssl rand -hex 16)");
     if (/^PUBLIC_IP=/m.test(envText)) R.warn("server.env", "has PUBLIC_IP: remove it, the VM adds its own");
-    putServerFiles(E, R, { "server/docker-compose.yml": path.join(lazy, "docker-compose.yml"), "server/.env": envFile }, "real server");
+    await putServerFiles(E, R, { "server/docker-compose.yml": path.join(lazy, "docker-compose.yml"), "server/.env": envFile }, "real server");
   },
 
-  async undeploy(E, R) { deleteServerFiles(E, R); },
+  async undeploy(E, R) { await deleteServerFiles(E, R); },
 };

@@ -1,5 +1,5 @@
 // Cloudflare DNS for the game: ip.<domain> (A, grey) that the worker points at the VM, and *.<domain> -> ip.
-// (The site's own records, <domain> and www, belong to 07-cloudflare-pages.)
+// (The site's own records, <domain> and www, belong to 07-repeated-cloudflare-pages.)
 import { F, cfApi, zoneOf } from "../../lib.mjs";
 import { S } from "../../specs.mjs";
 

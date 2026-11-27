@@ -49,15 +49,19 @@ The code is mounted, not baked in: edit and rerun, no rebuild.
 
 ## Steps
 
+`repeated-` in a name marks the steps you run again and again (a new site, worker or VM compose);
+the others are one-time setup. Call a step by its number (`07`), its full name, or the name without
+the number and `repeated-` (`cloudflare-pages`).
+
 | # | Step | Owns | Needs from earlier steps | Prints for later steps |
 |---|---|---|---|---|
 | 02 | `ovh-setup` | the region(s) enabled (default `OVH_REGION=DE1,GRA11`, tried in order); checks flavors, image(s) (default `Debian 12 - Docker`, then `Debian 12`), cost API | `OVH_PROJECT` (by hand) | - |
 | 03 | `cloudflare-dns` | `ip.<domain>` (A, grey) and `*.<domain>` -> ip | - | `CF_ZONE_ID`, `CF_ACCOUNT_ID` |
-| 05a | `cloudflare-r2-test-server` | the **test** server as the VM's compose: hello page + Dozzle logs (`../LazyServer/test-server`) | `CF_ACCOUNT_ID` | - |
-| 05b | `cloudflare-r2-populate` | the **real** server: `../LazyServer/docker-compose.yml` + `server.env` (replaces 05a) | `CF_ACCOUNT_ID` | - |
+| 05a | `repeated-cloudflare-r2-test-server` | the **test** server as the VM's compose: hello page + Dozzle logs (`../LazyServer/test-server`) | `CF_ACCOUNT_ID` | - |
+| 05b | `repeated-cloudflare-r2-populate` | the **real** server: `../LazyServer/docker-compose.yml` + `server.env` (replaces 05a) | `CF_ACCOUNT_ID` | - |
 | 06 | `cloudflare-turnstile` | the captcha widget | `CF_ACCOUNT_ID` | `TURNSTILE_SITEKEY`, `TURNSTILE_SECRET` |
-| 07 | `cloudflare-pages` | the landing page, `<domain>` + `www` and their DNS | `CF_ACCOUNT_ID`, `TURNSTILE_SITEKEY` | - |
-| 08 | `cloudflare-worker` | the worker on `<domain>/api/*` + its secrets | `CF_ACCOUNT_ID`, `CF_ZONE_ID`, `TURNSTILE_SECRET`, `OVH_PROJECT`, `DISCORD_PUBLIC_KEY` (optional) | - |
+| 07 | `repeated-cloudflare-pages` | the landing page, `<domain>` + `www` and their DNS | `CF_ACCOUNT_ID`, `TURNSTILE_SITEKEY` | - |
+| 08 | `repeated-cloudflare-worker` | the worker on `<domain>/api/*` + its secrets | `CF_ACCOUNT_ID`, `CF_ZONE_ID`, `TURNSTILE_SECRET`, `OVH_PROJECT`, `DISCORD_PUBLIC_KEY` (optional) | - |
 | 09 | `discord` | `/start /status /stop` + the interactions URL | worker live (08) | `DISCORD_PUBLIC_KEY` |
 | 10 | `test-loop` | one real start -> up -> stop -> deleted (a few minutes of VM time) | everything | - |
 

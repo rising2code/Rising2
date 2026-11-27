@@ -20,7 +20,7 @@ export const F = {
   cfToken: { re: /^[\w-]{35,}$/, shape: "~40 characters of letters, digits, - and _ (no prefix, not the Global API Key)" },
   hex32: { re: /^[0-9a-f]{32}$/, shape: "32 hex characters, e.g. 023e105f4ecef8ad9ca31a8372d0c353" },
   hex64: { re: /^[0-9a-f]{64}$/, shape: "64 hex characters" },
-  sharedToken: { re: /^[0-9a-f]{64}$/, shape: "64 hex characters - make one with: openssl rand -hex 32 (same value in 08-cloudflare-worker and 10-test-loop)" },
+  sharedToken: { re: /^[0-9a-f]{64}$/, shape: "64 hex characters - make one with: openssl rand -hex 32 (same value in 08-repeated-cloudflare-worker and 10-test-loop)" },
   ovhEndpoint: { re: /^https:\/\/(eu|ca|us)\.api\.(ovh|ovhcloud)\.com\/1\.0$/, shape: "https://eu.api.ovh.com/1.0 (ca.api.ovh.com / api.us.ovhcloud.com if the key was made there)" },
   ovhAppKey: { re: /^[A-Za-z0-9]{16}$/, shape: "16 letters/digits, e.g. 7kbG7Bk7S9Nt7ZSV (\"Application Key\")" },
   ovhSecret: { re: /^[A-Za-z0-9]{32}$/, shape: "32 letters/digits (\"Application Secret\")" },

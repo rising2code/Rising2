@@ -19,9 +19,9 @@ fi
 if [ "$step" != list ] && [ "$step" != token ]; then
   # exact name, name without its number, or else a prefix that matches only one step ("06", "05a")
   all=$(cd "$here/steps" && for d in */; do [ -f "$d/step.mjs" ] && echo "${d%/}"; done)
-  dir=$(grep -xF "$step" <<<"$all" || grep -E "^[0-9]+[a-z]?-" <<<"$all" | awk -v s="$step" '{ n=$0; sub(/^[0-9]+[a-z]?-/, "", n); if (n == s) print $0 }' | head -1 || true)
+  dir=$(grep -xF "$step" <<<"$all" || grep -E "^[0-9]+[a-z]?-" <<<"$all" | awk -v s="$step" '{ n=$0; sub(/^[0-9]+[a-z]?-(repeated-)?/, "", n); if (n == s) print $0 }' | head -1 || true)
   if [ -z "$dir" ]; then
-    hits=$(awk -v s="$step" '{ n=$0; sub(/^[0-9]+[a-z]?-/, "", n); if (index($0, s) == 1 || index(n, s) == 1) print $0 }' <<<"$all")
+    hits=$(awk -v s="$step" '{ n=$0; sub(/^[0-9]+[a-z]?-(repeated-)?/, "", n); if (index($0, s) == 1 || index(n, s) == 1) print $0 }' <<<"$all")
     if [ "$(grep -c . <<<"$hits")" -gt 1 ]; then echo "'$step' matches more than one step: $(echo $hits | tr ' ' ',')"; exit 1; fi
     dir=$hits
   fi

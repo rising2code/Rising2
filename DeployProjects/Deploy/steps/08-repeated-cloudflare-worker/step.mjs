@@ -12,7 +12,7 @@ const SECRETS = ["SHARED_TOKEN", "TURNSTILE_SECRET", "CF_DNS_TOKEN", "CF_ZONE_ID
 export default {
   title: "Cloudflare Worker: the API on <domain>/api/* with its settings + secrets",
   manual: [
-    "07-cloudflare-pages done (the worker's route needs <domain> to be on Cloudflare's proxy)",
+    "07-repeated-cloudflare-pages done (the worker's route needs <domain> to be on Cloudflare's proxy)",
     "a deploy token with Account > Workers Scripts Edit and Zone > Workers Routes Edit",
     "a second, DNS-only token for the worker itself (Zone > DNS Edit on this zone): CF_DNS_TOKEN",
     "a worker OVH key, made on your OVH site (ca/eu.api.ovh.com/createToken/), rules with your REAL project id typed in place of PROJECT_ID: GET /cloud/project/PROJECT_ID/*, POST /cloud/project/PROJECT_ID/instance, DELETE /cloud/project/PROJECT_ID/instance/*",

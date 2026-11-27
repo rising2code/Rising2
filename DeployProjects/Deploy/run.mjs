@@ -21,13 +21,15 @@ const [stepArg, action = "deploy"] = process.argv.slice(2);
 const ids = fs.readdirSync(STEPS).filter((d) => fs.existsSync(path.join(STEPS, d, "step.mjs"))).sort();
 if (!stepArg || stepArg === "list") {
   console.log("Steps, in order (each: deploy | undeploy | check):\n");
-  for (const id of ids) console.log(`  ${id.padEnd(31)} ${(await import(`./steps/${id}/step.mjs`)).default.title}`);
+  const w = Math.max(...ids.map((d) => d.length)) + 2;
+  for (const id of ids) console.log(`  ${id.padEnd(w)} ${(await import(`./steps/${id}/step.mjs`)).default.title}`);
   process.exit(0);
 }
 if (stepArg === "token") { console.log(randomBytes(32).toString("hex")); process.exit(0); }
 
 // exact name, name without its number, or else a prefix that matches only one step ("06", "05a")
-const bare = (d) => d.replace(/^\d+[a-z]?-/, "");
+// ("repeated-" marks the steps run again and again; it can be left out too: "cloudflare-pages")
+const bare = (d) => d.replace(/^\d+[a-z]?-(repeated-)?/, "");
 let id = ids.find((d) => d === stepArg || bare(d) === stepArg);
 if (!id) {
   const hits = ids.filter((d) => d.startsWith(stepArg) || bare(d).startsWith(stepArg));

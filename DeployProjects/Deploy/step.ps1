@@ -23,9 +23,10 @@ if ($Step -notin @("list", "token")) {
   # exact name, name without its number, or else a prefix that matches only one step ("06", "05a", "cloudflare-p")
   $all = Get-ChildItem (Join-Path $here "steps") -Directory | Where-Object { Test-Path (Join-Path $_.FullName "step.mjs") }
   $esc = [regex]::Escape($Step)
-  $dir = @($all | Where-Object { $_.Name -eq $Step -or $_.Name -match "^\d+[a-z]?-$esc$" }) | Select-Object -First 1
+  # ("repeated-" marks the steps run again and again; it can be left out too: "cloudflare-pages")
+  $dir = @($all | Where-Object { $_.Name -eq $Step -or $_.Name -match "^\d+[a-z]?-(repeated-)?$esc$" }) | Select-Object -First 1
   if (-not $dir) {
-    $hits = @($all | Where-Object { $_.Name -match "^$esc" -or $_.Name -match "^\d+[a-z]?-$esc" })
+    $hits = @($all | Where-Object { $_.Name -match "^$esc" -or $_.Name -match "^\d+[a-z]?-(repeated-)?$esc" })
     if ($hits.Count -gt 1) { Write-Host "'$Step' matches more than one step: $($hits.Name -join ', ')" -ForegroundColor Yellow; exit 1 }
     $dir = $hits | Select-Object -First 1
   }

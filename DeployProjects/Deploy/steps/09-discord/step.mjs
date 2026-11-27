@@ -13,7 +13,7 @@ export default {
   manual: [
     "a Discord application with a bot (discord.com/developers/applications)",
     "the bot invited to your server with the applications.commands scope",
-    "08-cloudflare-worker deployed WITH DISCORD_PUBLIC_KEY (Discord checks the URL with a signed request)",
+    "08-repeated-cloudflare-worker deployed WITH DISCORD_PUBLIC_KEY (Discord checks the URL with a signed request)",
   ],
   waitMin: 2,
   env: [

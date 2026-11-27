@@ -3,7 +3,7 @@
 Three small projects that run the Rising2 game servers for ~0$ while nobody plays:
 the VM exists only while people are playing.
 
-![rising2.net landing page with the live server status](LandingPage/docs/screenshot.png)
+![rising2.net landing page with the live server status](docs/LandingPage/screenshot.png)
 
 | Project | Runs on | What |
 |---|---|---|

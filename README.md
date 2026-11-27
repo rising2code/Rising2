@@ -4,7 +4,7 @@ Everything the **Rising2** fan community uses to bring **Rising Eagle** (PC, 200
 login, server list, saved ranks, dedicated servers, a launcher for players, a map editor, and a
 server that costs ~0$ while nobody plays.
 
-![rising2.net: the landing page with live server status](DeployProjects/LandingPage/docs/screenshot.png)
+![rising2.net: the landing page with live server status](DeployProjects/docs/LandingPage/screenshot.png)
 
 ## Why
 
@@ -62,7 +62,7 @@ Discord /start /stop ──────┴──> CF-Worker (+ R2 state) ──�
 
 | Landing page (English) | Landing page (Hebrew, default) |
 |---|---|
-| ![Landing page](DeployProjects/LandingPage/docs/screenshot.png) | ![Landing page in Hebrew](DeployProjects/LandingPage/docs/screenshot-he.png) |
+| ![Landing page](DeployProjects/docs/LandingPage/screenshot.png) | ![Landing page in Hebrew](DeployProjects/docs/LandingPage/screenshot-he.png) |
 
 The server-side modules have no UI of their own: GameSpy_UnifiedServer has an admin CLI and JSON pages,
 ServerLauncher drives the original server's window, and the deploy steps run in a terminal.

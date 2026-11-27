@@ -56,7 +56,7 @@ const T = {
     "faq.q1": "זה בחינם?", "faq.a1": "כן.",
     "faq.q2": "למה השרת לפעמים ישן?",
     "faq.a2": "הפרויקט ממומן על ידי מעריצים. כדי לחסוך בעלויות, שרת המשחק נכבה לבד אם אף אחד לא שיחק ב-15 הדקות האחרונות, או ב-05:00 בבוקר בכל יום. ככה כולנו יכולים להרשות לעצמנו לשחק שוב. כל הנקודות והדרגות נשמרות עד ההפעלה הבאה.",
-    "faq.q3": "איך יוצרים איתכם קשר?", "faq.a3": "בדיסקורד:",
+    "faq.q3": "איך יוצרים איתכם קשר?", "faq.a3": "בשרת הדיסקורד שלנו (Discord).",
     "footer.fan": "פרויקט מעריצים לא רשמי ללא מטרות רווח. Rising Eagle הוא סימן מסחרי של Invasion Interactive. אין קשר בין Rising2 לבעלי הזכויות.",
   },
   en: {
@@ -107,7 +107,7 @@ const T = {
     "faq.q1": "Is this FREE?", "faq.a1": "Yes.",
     "faq.q2": "Why is the server sometimes asleep?",
     "faq.a2": "This project is funded by fans. To save costs, the game server shuts down automatically if nobody has played in the last 15 minutes, or at 5 AM every day. That way we can all afford to play again. All scores and ranks are saved until the next server start.",
-    "faq.q3": "How do I contact you?", "faq.a3": "On Discord:",
+    "faq.q3": "How do I contact you?", "faq.a3": "On our Discord server.",
     "footer.fan": "Unofficial, non-profit fan project. Rising Eagle is a trademark of Invasion Interactive. Rising2 is not affiliated with the rights holders.",
   },
 };

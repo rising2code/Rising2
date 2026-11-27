@@ -45,7 +45,7 @@ main { overflow-x: clip; } /* the sun aura is wider than a phone */
 
 /* ---------- hero ---------- */
 .hero { display: grid; grid-template-columns: 1.3fr 1fr; gap: clamp(1.5rem, 4vw, 3.5rem); align-items: center;
-  padding: clamp(1rem, 3vw, 2rem) 0 clamp(2rem, 6vw, 4rem); }
+  padding: clamp(1rem, 3vw, 2rem) 0 clamp(1.25rem, 3vw, 2rem); }
 @media (max-width: 860px) { .hero { grid-template-columns: 1fr; } }
 .kicker { margin: 0 0 .5rem; color: var(--gold); text-shadow: 0 0 10px #ff9a0066; font: 700 .9rem var(--head); letter-spacing: .2em; text-transform: uppercase; }
 .hero-logo { position: relative; width: 100%; height: auto; display: block; }
@@ -98,6 +98,8 @@ h1 { font: 700 clamp(1.8rem, 4.4vw, 3rem)/1.2 Consolas, "Lucida Console", "Couri
 .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
 .btn:disabled { opacity: .6; cursor: wait; }
 .btn.discord { background: var(--discord); color: #fff; }
+.btn.github { background: #000; color: #fff; border: 1px solid #ffffff33; }
+.btn.github:hover { border-color: #ffffff88; }
 .btn.primary { color: #1a0d00; background: linear-gradient(180deg, var(--gold-2), var(--gold) 55%, var(--fire)); box-shadow: 0 0 18px #ff9a0055; }
 .btn.primary:hover { box-shadow: 0 0 28px #ffae00aa, 0 0 6px #ffd51f; }
 .btn.wide { width: 100%; }
@@ -117,7 +119,9 @@ h1 { font: 700 clamp(1.8rem, 4.4vw, 3rem)/1.2 Consolas, "Lucida Console", "Couri
 
 /* the human check, under the logo: unlocks the status, the links and the archive */
 .gate { position: relative; display: flex; flex-direction: column; align-items: center; gap: .4rem;
-  margin: clamp(.5rem, 2vw, 1rem) auto 0; text-align: center; }
+  margin: 0 auto; text-align: center; }
+/* the buttons row under the check, centred */
+.hero-cta { justify-content: center; margin: 1.25rem 0 clamp(2rem, 6vw, 4rem); }
 .gate .cf-turnstile { min-height: 65px; }
 .gate-msg { margin: 0; max-width: 34rem; font-size: .85rem; color: var(--muted); }
 .gate-msg.ok { color: var(--ok); font-weight: 700; }

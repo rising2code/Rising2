@@ -16,6 +16,7 @@
   <!-- Icons, used with <svg><use href="#i-..."/></svg> -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="i-discord" viewBox="0 0 24 24"><path fill="currentColor" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.6-1.4-1.4-1.8-1.4-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></symbol>
     <symbol id="i-windows" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h11.377v11.372H0zm12.623 0H24v11.372H12.623zM0 12.623h11.377V24H0zm12.623 0H24V24H12.623z"/></symbol>
     <symbol id="i-free" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 12v8H4v-8M2 7h20v5H2zM12 20V7m0 0H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7zm0 0h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7z"/></symbol>
     <symbol id="i-medal" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 2h10l-3 7h-4zm5 7a6 6 0 1 0 0 12 6 6 0 0 0 0-12zm0 3 1.2 2.4 2.6.4-1.9 1.8.5 2.6-2.4-1.3-2.4 1.3.5-2.6-1.9-1.8 2.6-.4z"/></symbol>
@@ -39,20 +40,11 @@
   <main>
     <!-- ================= Banner + server status ================= -->
     <div class="sun"><i class="corona" aria-hidden="true"></i><i class="corona b" aria-hidden="true"></i><img class="hero-logo" src="assets/logo.png" alt="Rising2"></div>
-    <!-- one human check unlocks the server status, the links and the archive (no crawlers) -->
-    <div id="gate" class="gate">
-      <div class="cf-turnstile"></div>
-      <p id="gate-msg" class="gate-msg" data-i18n="gate.hint"></p>
-    </div>
     <section class="hero">
       <div class="hero-text">
         <p class="kicker" data-i18n="hero.kicker"></p>
         <h1 data-i18n="hero.title"></h1>
         <p class="lead" data-i18n="hero.lead"></p>
-        <div class="cta">
-          <a class="btn primary" data-download href="#"><svg><use href="#i-windows"/></svg><span data-i18n="cta.download"></span></a>
-          <a class="btn discord" data-discord href="#" target="_blank" rel="noopener"><svg><use href="#i-discord"/></svg><span data-i18n="cta.discord"></span></a>
-        </div>
       </div>
 
       <aside id="status" class="status-card" aria-live="polite">
@@ -70,6 +62,17 @@
         </form>
       </aside>
     </section>
+
+    <!-- one human check unlocks the server status, the links and the archive (no crawlers) -->
+    <div id="gate" class="gate">
+      <div class="cf-turnstile"></div>
+      <p id="gate-msg" class="gate-msg" data-i18n="gate.hint"></p>
+    </div>
+    <div class="cta hero-cta">
+      <a class="btn primary" data-download href="#"><svg><use href="#i-windows"/></svg><span data-i18n="cta.download"></span></a>
+      <a class="btn discord" data-discord href="#" target="_blank" rel="noopener"><svg><use href="#i-discord"/></svg><span data-i18n="cta.discord"></span></a>
+      <a class="btn github" data-github href="#" target="_blank" rel="noopener"><svg><use href="#i-github"/></svg><span>GitHub</span></a>
+    </div>
 
     <!-- ================= Why ================= -->
     <section id="why" class="block">
@@ -180,14 +183,13 @@
       <dl class="faq">
         <div><dt data-i18n="faq.q1"></dt><dd data-i18n="faq.a1"></dd></div>
         <div><dt data-i18n="faq.q2"></dt><dd data-i18n="faq.a2"></dd></div>
-        <div><dt data-i18n="faq.q3"></dt><dd><span data-i18n="faq.a3"></span> <a data-discord href="#" target="_blank" rel="noopener">Discord</a></dd></div>
+        <div><dt data-i18n="faq.q3"></dt><dd data-i18n="faq.a3"></dd></div>
       </dl>
     </section>
   </main>
 
   <footer>
     <p data-i18n="footer.fan"></p>
-    <p><a data-discord href="#" target="_blank" rel="noopener">Discord</a> · <a data-github href="#" target="_blank" rel="noopener">GitHub</a></p>
     <p class="build" dir="ltr">dev</p>
   </footer>
 

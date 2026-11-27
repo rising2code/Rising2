@@ -3,6 +3,7 @@
 import { listInstances, findInstance, createInstance, deleteInstance, monthCost, fmtCost } from "./ovh.js";
 import { readStatus, writeStatus, cooldown, setStopRequest, clearStopRequest, setDns } from "./cloudflare.js";
 import { discordPost } from "./discord.js";
+import { maskIps } from "./util.js";
 
 const LOG_KEEP = 10;                 // events kept in the public status log
 const STARTING_GRACE_MS = 15 * 60e3; // a "starting" state younger than this blocks a new start
@@ -83,8 +84,8 @@ export async function setPlayers(env, n) {
 
 // A log line can read differently per audience: { web, discord }, where Discord gets clickable
 // <@user> / <#channel> mentions and the website plain names. A plain string is the same for both.
-export const forWeb = (m) => (typeof m === "string" ? m : m?.web ?? "");
-const forDiscord = (m) => (typeof m === "string" ? m : m?.discord ?? m?.web ?? "");
+export const forWeb = (m) => maskIps(typeof m === "string" ? m : m?.web ?? "");
+const forDiscord = (m) => maskIps(typeof m === "string" ? m : m?.discord ?? m?.web ?? "");
 const wrap = (m, f) => ({ web: f(forWeb(m)), discord: f(forDiscord(m)) });
 
 // One line in the public status log (and the Discord channel), optionally a new state.

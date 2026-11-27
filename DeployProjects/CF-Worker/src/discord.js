@@ -1,7 +1,7 @@
 // Discord-facing: the /start /stop /status slash commands, and posts to the channel webhook.
 import { startVm, requestStop } from "./server.js";
 import { readStatus } from "./cloudflare.js";
-import { json, unhex } from "./util.js";
+import { json, unhex, maskIps } from "./util.js";
 
 // POST /discord: Discord's interactions endpoint (signed with the app's Ed25519 key).
 export async function discordInteraction(req, env, ctx) {
@@ -35,7 +35,7 @@ export async function discordInteraction(req, env, ctx) {
     }
     const r = await fetch(`https://discord.com/api/v10/webhooks/${it.application_id}/${it.token}/messages/@original`, {
       method: "PATCH", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+      body: JSON.stringify({ content: maskIps(content), allowed_mentions: { parse: [] } }),
     }).catch((e) => ({ ok: false, status: 0, text: async () => String(e) }));
     if (!r.ok) console.error(`/${cmd}: editing the reply failed: ${r.status} ${await r.text()}`);
   })());
@@ -78,6 +78,6 @@ export async function discordPost(env, content) {
   if (!env.DISCORD_WEBHOOK_URL) return;
   await fetch(env.DISCORD_WEBHOOK_URL, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+    body: JSON.stringify({ content: maskIps(content), allowed_mentions: { parse: [] } }),
   }).catch(() => {});
 }

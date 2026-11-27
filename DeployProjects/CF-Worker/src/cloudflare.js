@@ -1,5 +1,5 @@
 // Cloudflare services: R2 (status, stop flag, rate limit, the VM's files), DNS and Turnstile.
-import { json } from "./util.js";
+import { json, maskIps } from "./util.js";
 
 // {state, updated, log: [last 10 {t, msg}], players?, playersAt?} - players is set only while the
 // VM is up and reporting (a number, or null = unknown); older files simply don't have it.
@@ -10,7 +10,9 @@ const STOP_KEY = "functions/stop_request";    // present = the VM should sync an
 
 export async function readStatus(env) {
   const obj = await env.R2.get(STATUS_KEY);
-  return obj ? JSON.parse(await obj.text()) : { state: "off", updated: 0, log: [] };
+  const st = obj ? JSON.parse(await obj.text()) : { state: "off", updated: 0, log: [] };
+  st.log = (st.log || []).map((l) => ({ ...l, msg: maskIps(l.msg) })); // lines saved before masking existed
+  return st;
 }
 
 export async function writeStatus(env, st) {

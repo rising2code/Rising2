@@ -39,6 +39,11 @@
   <main>
     <!-- ================= Banner + server status ================= -->
     <div class="sun"><i class="corona" aria-hidden="true"></i><i class="corona b" aria-hidden="true"></i><img class="hero-logo" src="assets/logo.png" alt="Rising2"></div>
+    <!-- one human check unlocks the server status, the links and the archive (no crawlers) -->
+    <div id="gate" class="gate">
+      <div class="cf-turnstile"></div>
+      <p id="gate-msg" class="gate-msg" data-i18n="gate.hint"></p>
+    </div>
     <section class="hero">
       <div class="hero-text">
         <p class="kicker" data-i18n="hero.kicker"></p>
@@ -60,7 +65,6 @@
         <ol id="log" class="log"></ol>
         <form id="start" class="start" hidden>
           <p class="muted" data-i18n="start.hint"></p>
-          <div class="cf-turnstile"></div>
           <button class="btn primary wide" type="submit"><svg><use href="#i-play"/></svg><span data-i18n="start.btn"></span></button>
           <p id="start-msg" class="start-msg"></p>
         </form>
@@ -163,6 +167,13 @@
       </div>
     </section>
 
+    <!-- ================= Archive: only when the worker lists files (after the human check) ================= -->
+    <section id="archive" class="block" hidden>
+      <h2 data-i18n="archive.title"></h2>
+      <p class="muted" data-i18n="archive.lead"></p>
+      <ul id="archive-list" class="archive"></ul>
+    </section>
+
     <!-- ================= FAQ (always open) ================= -->
     <section id="faq" class="block">
       <h2 data-i18n="faq.title"></h2>
@@ -176,7 +187,7 @@
 
   <footer>
     <p data-i18n="footer.fan"></p>
-    <p><a data-discord href="#" target="_blank" rel="noopener">Discord</a></p>
+    <p><a data-discord href="#" target="_blank" rel="noopener">Discord</a> · <a data-github href="#" target="_blank" rel="noopener">GitHub</a></p>
     <p class="build" dir="ltr">dev</p>
   </footer>
 

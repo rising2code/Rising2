@@ -114,6 +114,21 @@ h1 { font: 700 clamp(1.8rem, 4.4vw, 3rem)/1.2 Consolas, "Lucida Console", "Couri
 .pill.up::before, .pill.starting::before { content: "●"; margin-inline-end: .35em; animation: blink 1.4s infinite; }
 @keyframes blink { 50% { opacity: .2; } }
 .status-text { margin: .75rem 0; }
+
+/* the human check, under the logo: unlocks the status, the links and the archive */
+.gate { position: relative; display: flex; flex-direction: column; align-items: center; gap: .4rem;
+  margin: clamp(.5rem, 2vw, 1rem) auto 0; text-align: center; }
+.gate .cf-turnstile { min-height: 65px; }
+.gate-msg { margin: 0; max-width: 34rem; font-size: .85rem; color: var(--muted); }
+.gate-msg.ok { color: var(--ok); font-weight: 700; }
+a.locked { opacity: .45; filter: grayscale(.6); cursor: not-allowed; }
+.pill.locked { color: var(--muted); }
+
+/* the file archive (shown only when the worker lists files) */
+.archive { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: .6rem; }
+.archive li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem 1rem;
+  border: 1px solid var(--line); border-radius: 8px; background: #00140866; }
+.archive li p { margin: .2rem 0 0; }
 .players { margin: -.25rem 0 .75rem; font-weight: 700; color: var(--ok); }
 .players::before { content: "👥"; margin-inline-end: .4em; }
 .log { list-style: none; margin: 0 0 1rem; padding: .5rem .75rem; border-radius: 6px; background: #00140899;

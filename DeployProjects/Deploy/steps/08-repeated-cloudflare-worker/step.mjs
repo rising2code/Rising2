@@ -5,9 +5,9 @@ import { F, SRC, BUILD, DRY, copyDir, wrangler, waitFor } from "../../lib.mjs";
 import { S } from "../../specs.mjs";
 
 const VARS = ["OVH_ENDPOINT", "OVH_REGION", "OVH_FLAVORS", "OVH_IMAGE", "VM_NAME", "GAME_ZIP_URL", "SSH_PUBLIC_KEY", "START_COOLDOWN_HOURS",
-  "DISCORD_ADMIN_ROLE", "MAX_COST_CURRENT", "MAX_COST_FORECAST", "DNS_TTL"];
+  "DISCORD_ADMIN_ROLE", "MAX_COST_CURRENT", "MAX_COST_FORECAST", "DNS_TTL", "S3_ENDPOINT", "S3_REGION", "S3_BUCKET"];
 const SECRETS = ["SHARED_TOKEN", "TURNSTILE_SECRET", "CF_DNS_TOKEN", "CF_ZONE_ID", "OVH_APP_KEY", "OVH_APP_SECRET", "OVH_CONSUMER_KEY",
-  "OVH_PROJECT", "DISCORD_PUBLIC_KEY", "DISCORD_WEBHOOK_URL"];
+  "OVH_PROJECT", "DISCORD_PUBLIC_KEY", "DISCORD_WEBHOOK_URL", "S3_ACCESS_KEY", "S3_SECRET_KEY"];
 
 export default {
   title: "Cloudflare Worker: the API on <domain>/api/* with its settings + secrets",
@@ -47,6 +47,12 @@ export default {
     { name: "MAX_COST_CURRENT", f: F.number, required: true, def: "15", about: "no Start once this month's OVH cost reaches this (EUR)" },
     { name: "MAX_COST_FORECAST", f: F.number, required: true, def: "20", about: "no Start once OVH's forecast for the month reaches this (EUR)" },
     { name: "DNS_TTL", f: F.number, required: true, def: "60", about: "TTL the worker sets on ip.<domain>" },
+    // ---- the public resource archive (optional): S3 bucket the site signs 10-minute download links for
+    { name: "S3_ENDPOINT", f: F.url, about: "S3 endpoint of the archive bucket, e.g. https://s3.gra.io.cloud.ovh.net (OVH Object Storage)" },
+    { name: "S3_REGION", f: F.name, about: "its region, e.g. gra" },
+    { name: "S3_BUCKET", f: F.name, about: "the archive bucket (not public: the worker signs links for the files in R2 site/s3files.json)" },
+    { name: "S3_ACCESS_KEY", f: F.any, about: "S3 user access key (OVH: Object Storage > Users > S3 credentials), read access is enough" },
+    { name: "S3_SECRET_KEY", f: F.any, about: "S3 user secret key" },
   ],
 
   async deploy(E, R) {
@@ -76,11 +82,15 @@ export default {
 
     if (DRY && !process.env.WORKER_TEST_URL) return R.skip("live check", "dry run");
     const api = process.env.WORKER_TEST_URL || `https://${E.DOMAIN}/api`;
+    const auth = { authorization: `Bearer ${E.SHARED_TOKEN}` };
     const st = await waitFor(`${api}/status`, async () => {
-      const r = await fetch(`${api}/status`);
+      const r = await fetch(`${api}/status`, { headers: auth });
       return r.ok && (r.headers.get("content-type") || "").includes("json") ? r.json() : null;
     }, { minutes: E.WAIT_MIN });
     R.ok("live", `${api}/status answers: state "${st.state}"`);
+    const open = await fetch(`${api}/status`);
+    if (open.status === 401) R.ok("captcha lock", "/status without the Turnstile pass is refused");
+    else R.fail("captcha lock", `/status without a pass got ${open.status} (expected 401)`);
     const bad = await fetch(`${api}/should-stop`, { headers: { authorization: "Bearer wrong" } });
     if (bad.status === 401) R.ok("token check", "a wrong token is refused");
     else R.fail("token check", `a wrong token got ${bad.status}`);

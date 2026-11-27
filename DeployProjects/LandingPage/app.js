@@ -1,10 +1,10 @@
 "use strict";
 // ---- settings: fill these in before deploying ----
+// The links (Discord, GitHub, download) aren't here on purpose: the worker hands them out after the
+// human check (R2 site/urls.json), so crawlers never get them.
 const CONFIG = {
   api: "/api",                                  // CF-Worker route on the same domain
-  discord: "https://discord.gg/REPLACE_ME",
-  download: "#download-coming-soon",            // direct download of the game + Rising2 launcher
-  turnstileSiteKey: "1x00000000000000000000AA", // Cloudflare's always-pass test key; replace
+  turnstileSiteKey: "1x00000000000000000000AA", // Cloudflare's always-pass test key; Deploy step 07 sets the real one
 };
 
 const T = {
@@ -23,6 +23,12 @@ const T = {
     "text.error": "משהו השתבש בהפעלה. נסו שוב או כתבו בדיסקורד.",
     "text.unknown": "לא הצלחנו לקרוא את מצב השרת.",
     "players.0": "אין שחקנים מחוברים כרגע", "players.1": "שחקן אחד מחובר", "players.n": "{n} שחקנים מחוברים",
+    "gate.hint": "בדיקה קצרה שאתם לא בוט - והאתר נפתח: מצב השרת, הקישורים וההורדות.",
+    "gate.ok": "✓ אומתתם. תודה!", "gate.fail": "האימות לא הצליח. רעננו את הדף ונסו שוב.",
+    "state.locked": "נעול", "text.locked": "השלימו את הבדיקה למעלה כדי לראות את מצב השרת.",
+    "link.locked": "השלימו את הבדיקה למעלה",
+    "archive.title": "ארכיון קבצים", "archive.lead": "קבצים מהקהילה ומהמשחק המקורי. כל קישור תקף לכמה דקות.",
+    "archive.dl": "הורדה", "archive.fail": "ההורדה לא הצליחה, נסו שוב.",
     "start.hint": "אישור קצר שאתם לא בוט, ואז השרת מתחיל לעלות.",
     "start.btn": "העירו את השרת", "start.sending": "שולח…", "start.ok": "הבקשה התקבלה, השרת עולה!",
     "start.captcha": "אימות נכשל - נסו שוב.", "start.cooldown": "כבר הפעלתם היום. נסו שוב בעוד ~{h} שעות.",
@@ -68,6 +74,12 @@ const T = {
     "text.error": "Something went wrong while starting. Try again or ask on Discord.",
     "text.unknown": "Couldn't read the server status.",
     "players.0": "Nobody online right now", "players.1": "1 player online", "players.n": "{n} players online",
+    "gate.hint": "A quick check that you're not a bot unlocks the site: server status, links and downloads.",
+    "gate.ok": "✓ Verified. Thanks!", "gate.fail": "The check didn't work. Reload the page and try again.",
+    "state.locked": "Locked", "text.locked": "Complete the check at the top to see the server status.",
+    "link.locked": "Complete the check at the top first",
+    "archive.title": "File archive", "archive.lead": "Community files and files from the original game. Each link works for a few minutes.",
+    "archive.dl": "Download", "archive.fail": "The download didn't work, try again.",
     "start.hint": "A quick check that you're not a bot, then the server starts.",
     "start.btn": "Wake the server", "start.sending": "Sending…", "start.ok": "Got it, the server is starting!",
     "start.captcha": "Check failed - try again.", "start.cooldown": "You already started it today. Try again in ~{h} h.",
@@ -124,9 +136,87 @@ $("#lang").onclick = () => {
   applyLang();
 };
 
-$$("[data-discord]").forEach((a) => (a.href = CONFIG.discord));
-$$("[data-download]").forEach((a) => (a.href = CONFIG.download));
-window.onTurnstile = () => turnstile.render(".cf-turnstile", { sitekey: CONFIG.turnstileSiteKey, theme: "dark" });
+// ---- the human check: one Turnstile token -> a one-hour pass from the worker (x-pass on every call) ----
+// Until then the status, the links and the archive are locked. The pass is kept for this tab only.
+let pass = null, widget = null, unlocked = false;
+try { const p = JSON.parse(sessionStorage.getItem("pass") || "null"); if (p && p.exp > Date.now() + 60e3) pass = p; } catch {}
+const LINKS = ["discord", "github", "download"];
+LINKS.forEach((k) => $$(`[data-${k}]`).forEach((a) => { a.classList.add("locked"); a.removeAttribute("target"); a.href = "#gate"; }));
+
+window.onTurnstile = () => {
+  widget = turnstile.render("#gate .cf-turnstile", {
+    sitekey: CONFIG.turnstileSiteKey, theme: "dark", "refresh-expired": "auto",
+    callback: async (token) => {
+      try {
+        const r = await fetch(`${CONFIG.api}/session`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) });
+        if (!r.ok) throw new Error(r.status);
+        pass = await r.json();
+        try { sessionStorage.setItem("pass", JSON.stringify(pass)); } catch {}
+        unlock();
+      } catch { gateMsg("gate.fail"); }
+    },
+    "error-callback": () => gateMsg("gate.fail"),
+  });
+};
+function gateMsg(key) { const m = $("#gate-msg"); m.dataset.i18n = key; m.textContent = t(key); m.classList.toggle("ok", key === "gate.ok"); }
+
+// a call to the worker with the pass; a refused pass (expired) asks the widget for a new one
+async function api(path, opts = {}) {
+  const r = await fetch(`${CONFIG.api}${path}`, { cache: "no-store", ...opts, headers: { ...(opts.headers || {}), "x-pass": pass?.pass || "" } });
+  if (r.status === 401) {
+    pass = null; unlocked = false;
+    try { sessionStorage.removeItem("pass"); } catch {}
+    gateMsg("gate.hint");
+    if (widget !== null) turnstile.reset(widget);
+  }
+  return r;
+}
+
+async function unlock() {
+  gateMsg("gate.ok");
+  if (unlocked) return;
+  unlocked = true;
+  poll();
+  try {
+    const urls = await (await api("/links")).json();
+    LINKS.forEach((k) => $$(`[data-${k}]`).forEach((a) => {
+      a.hidden = !urls[k];
+      if (!urls[k]) return;
+      a.href = urls[k]; a.classList.remove("locked"); a.removeAttribute("title");
+      if (k !== "download") a.target = "_blank";
+    }));
+  } catch {}
+  try { renderArchive((await (await api("/get-files")).json()).files || []); } catch {}
+}
+
+function renderArchive(files) {
+  $("#archive").hidden = !files.length;
+  $("#archive-list").replaceChildren(...files.map((f) => {
+    const li = document.createElement("li");
+    const info = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = f.name;
+    info.append(name);
+    if (f.size) info.append(` · ${f.size}`);
+    if (f.about) { const p = document.createElement("p"); p.className = "muted"; p.textContent = f.about; info.append(p); }
+    const btn = document.createElement("button");
+    btn.className = "btn primary";
+    btn.dataset.i18n = "archive.dl";
+    btn.textContent = t("archive.dl");
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        const r = await api("/sign-s3-1", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: f.key }) });
+        const d = await r.json();
+        if (!r.ok || !d.url) throw new Error();
+        location.href = d.url; // a 10-minute signed link
+      } catch { alert(t("archive.fail")); }
+      btn.disabled = false;
+    };
+    li.append(info, btn);
+    return li;
+  }));
+}
 
 // ---- background: dim grid, with light beams shooting along grid lines edge to edge ----
 (() => {
@@ -318,7 +408,7 @@ if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
 
 // ---- server status ----
 function renderStatus() {
-  const st = status ? status.state : "unknown";
+  const st = !pass ? "locked" : status ? status.state : "unknown";
   const pill = $("#pill");
   pill.className = `pill ${st}`;
   pill.textContent = t(`state.${st}`);
@@ -338,14 +428,17 @@ function renderStatus() {
   $("#start").hidden = !(st === "off" || st === "error");
 }
 
+let pollTimer = null;
 async function poll() {
+  clearTimeout(pollTimer);
+  if (!pass) { status = null; renderStatus(); return; } // locked: unlock() starts polling again
   try {
-    const r = await fetch(`${CONFIG.api}/status`, { cache: "no-store" });
+    const r = await api("/status");
     status = r.ok ? await r.json() : null;
   } catch { status = null; }
   renderStatus();
   const busy = status && (status.state === "starting" || status.state === "stopping");
-  setTimeout(poll, busy ? 8000 : 60000);
+  pollTimer = setTimeout(poll, busy ? 8000 : 60000);
 }
 
 $("#start").onsubmit = async (e) => {
@@ -355,7 +448,7 @@ $("#start").onsubmit = async (e) => {
   btn.disabled = true;
   msg.textContent = t("start.sending");
   try {
-    const r = await fetch(`${CONFIG.api}/start`, { method: "POST", body: new FormData(e.target) });
+    const r = await api("/start", { method: "POST" });
     const d = await r.json().catch(() => ({}));
     if (r.ok) msg.textContent = t("start.ok");
     else if (d.error === "captcha") msg.textContent = t("start.captcha");
@@ -363,11 +456,11 @@ $("#start").onsubmit = async (e) => {
     else if (d.error === "budget") msg.textContent = t("start.budget");
     else if (r.status === 409) msg.textContent = t("start.running");
     else msg.textContent = t("start.fail");
-    if (r.ok) { status = { ...(status || { log: [] }), state: "starting" }; renderStatus(); setTimeout(poll, 4000); }
+    if (r.ok) { status = { ...(status || { log: [] }), state: "starting" }; renderStatus(); pollTimer = setTimeout(poll, 4000); }
   } catch { msg.textContent = t("start.fail"); }
   btn.disabled = false;
-  window.turnstile?.reset();
 };
 
 applyLang();
-poll();
+if (pass) unlock(); // this tab already passed the check within the hour
+else renderStatus();

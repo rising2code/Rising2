@@ -1,0 +1,4 @@
+{
+  "_about": "The public resource archive (files in the S3 bucket of worker setting S3_BUCKET). Uploaded to R2 site/s3files.json by Deploy step 05 (then edit it in R2). Each file: key = its path in the bucket, name = what the page shows, size / about optional. Only listed keys can be downloaded.",
+  "files": []
+}

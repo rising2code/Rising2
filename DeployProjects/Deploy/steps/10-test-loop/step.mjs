@@ -61,7 +61,7 @@ export default {
     const H = { authorization: `Bearer ${E.SHARED_TOKEN}` };
     const ovh = ovhApi(ovhCreds(E));
     const vmsNamed = h?.vmsNamed || (async () => (await ovh("GET", `/cloud/project/${E.OVH_PROJECT}/instance`)).filter((v) => v.name === E.VM_NAME));
-    const follow = h?.follow || (async () => fetch(`${api}/status`).then((r) => r.json()).catch(() => ({})));
+    const follow = h?.follow || (async () => fetch(`${api}/status`, { headers: H }).then((r) => r.json()).catch(() => ({})));
     if (!(await vmsNamed()).length) {
       const st = await follow();
       if (st.state !== "starting" && st.state !== "stopping") return R.ok("stop", `no ${E.VM_NAME} running`);

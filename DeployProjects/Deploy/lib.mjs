@@ -347,6 +347,20 @@ export async function checkR2Bucket(E, R) {
 }
 
 // Removes only the two server/ files - never the saved game state (configs_sync/) or rate-limit marks.
+// Does this R2 object exist? (wrangler's "get" fails with "The specified key does not exist" when
+// it's missing; any other failure is a real error.) Dry run: treated as missing.
+export function r2Exists(E, key) {
+  if (DRY) return false;
+  const back = path.join(BUILD, "exists-check");
+  try {
+    wrangler(["r2", "object", "get", `${E.R2_BUCKET}/${key}`, "--file", back], { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID });
+    return true;
+  } catch (e) {
+    if (/specified key does not exist|NoSuchKey|10007/i.test(e.message)) return false;
+    throw e;
+  } finally { fs.rmSync(back, { force: true }); }
+}
+
 export async function deleteServerFiles(E, R) {
   await checkR2Bucket(E, R);
   const w = { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID };

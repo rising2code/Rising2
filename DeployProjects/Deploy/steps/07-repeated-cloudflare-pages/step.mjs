@@ -13,15 +13,14 @@ export default {
     S.CF_API_TOKEN("Account > Cloudflare Pages Edit, Zone > DNS Edit + Zone Read"), S.CF_ACCOUNT_ID, S.DOMAIN,
     { name: "PAGES_PROJECT", f: F.name, required: true, def: "rising2", about: "the Pages project name (the site is also at <name>.pages.dev)" },
     { name: "TURNSTILE_SITEKEY", f: F.turnstileSite, required: true, about: "the captcha's site key (06-cloudflare-turnstile prints it)" },
-    { name: "DISCORD_INVITE", f: F.invite, about: "the Discord buttons' link" },
-    { name: "DOWNLOAD_URL", f: F.url, about: "the \"1.3GB ZIP download\" buttons' link" },
   ],
 
   async deploy(E, R) {
     const cf = cfApi(E.CF_API_TOKEN);
     const A = `/accounts/${E.CF_ACCOUNT_ID}/pages/projects`;
 
-    // the site, with CONFIG patched (the repo's app.js is never changed)
+    // the site, with CONFIG patched (the repo's app.js is never changed). The links (Discord, GitHub,
+    // download) aren't in the page: it gets them from the worker after the captcha (R2 site/urls.json, step 05).
     const out = path.join(BUILD, "site");
     fs.rmSync(out, { recursive: true, force: true });
     for (const f of ["index.html", "style.css", "app.js", "assets"]) {
@@ -29,7 +28,7 @@ export default {
     }
     let js = fs.readFileSync(path.join(out, "app.js"), "utf8");
     const set = (key, val) => { if (val) js = js.replace(new RegExp(`(${key}: )"[^"]*"`), `$1${JSON.stringify(val)}`); };
-    set("turnstileSiteKey", E.TURNSTILE_SITEKEY); set("discord", E.DISCORD_INVITE); set("download", E.DOWNLOAD_URL);
+    set("turnstileSiteKey", E.TURNSTILE_SITEKEY);
     fs.writeFileSync(path.join(out, "app.js"), js);
 
     // Which build is live: the commit (step.ps1 / step.sh pass GIT_COMMIT, "+dirty" = uncommitted
@@ -48,8 +47,6 @@ export default {
       .map((p) => `${p}\n  Cache-Control: no-cache\n`).join(""));
     R.ok("build", build);
 
-    if (!E.DISCORD_INVITE) R.warn("DISCORD_INVITE", "not set: the Discord buttons keep the placeholder link");
-    if (!E.DOWNLOAD_URL) R.warn("DOWNLOAD_URL", "not set: the download buttons keep the placeholder link");
 
     if (!(await cf("GET", A)).some((p) => p.name === E.PAGES_PROJECT)) {
       await cf("POST", A, { name: E.PAGES_PROJECT, production_branch: "main" });

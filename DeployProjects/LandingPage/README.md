@@ -3,6 +3,11 @@
 Static page for Cloudflare Pages: `index.html`, `style.css`, `app.js`, `assets/`.
 No build step. Hebrew by default, English with the toggle (remembered per browser).
 
+![Landing page, English, after the captcha, server online](docs/screenshot.png)
+
+[Hebrew (default)](docs/screenshot-he.png) · [whole page](docs/screenshot-full.png).
+The shots come from a local run against a stand-in API (server "online", 3 players), not the live site.
+
 Sections: banner with **Direct download** + Discord, live server status, "why Rising2"
 (direct download, open source, free, play now), gallery, how to join (3 steps), about.
 

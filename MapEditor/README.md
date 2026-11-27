@@ -2,6 +2,8 @@
 
 An Electron + JavaScript editor for Rising Eagle (Nebula Device 2) levels.
 
+![Map Editor with the Eiffel level open in the textured view](docs/screenshot.png)
+
 ```bash
 npm install
 npm start

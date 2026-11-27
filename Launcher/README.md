@@ -10,6 +10,8 @@ It replaces [REExtraUtils](https://github.com/yonixw/REExtraUtils) and keeps all
    original RTF files in `data/info/`: edit them in WordPad, and colors, bold and highlights show in the launcher.
 4. **Suggested links**: fetches `links.txt` from the latest REExtraUtils release, and falls back to a built-in copy.
 
+![Rising2 Launcher: Hosts / Redirect page](screenshot.png)
+
 Windows 10/11 only (it uses the WebView2 runtime that ships with Windows).
 On Windows 7/8.1 it shows a "not supported" message and exits.
 

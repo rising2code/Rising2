@@ -246,7 +246,12 @@ export const SERVER_KEYS = ["server/docker-compose.yml", "server/.env"];
 // files: { "server/docker-compose.yml": localPath, "server/.env": localPath }. Uploads, then reads
 // each back and compares, so "uploaded" means it's really there.
 // Keeps the first and last 3 characters of a value, the rest becomes * (short values: all *).
-export const maskValue = (v) => (v.length <= 6 ? "*".repeat(v.length) : v.slice(0, 3) + "*".repeat(v.length - 6) + v.slice(-3));
+// Long values keep their first and last 3 characters; short ones (3-6) only their last 2, so a
+// whole short value never shows; 1-2 characters are all stars.
+export const maskValue = (v) =>
+  v.length > 6 ? v.slice(0, 3) + "*".repeat(v.length - 6) + v.slice(-3)
+  : v.length > 2 ? "*".repeat(v.length - 2) + v.slice(-2)
+  : "*".repeat(v.length);
 
 // A file's text for the console with every value masked: "KEY=value" in .env files, "key: value" in
 // YAML. Comments, blank lines and lines without a value stay as they are.

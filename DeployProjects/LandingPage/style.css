@@ -98,8 +98,10 @@ h1 { font: 700 clamp(1.8rem, 4.4vw, 3rem)/1.2 Consolas, "Lucida Console", "Couri
 .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
 .btn:disabled { opacity: .6; cursor: wait; }
 .btn.discord { background: var(--discord); color: #fff; }
-.btn.github { background: #000; color: #fff; border: 1px solid #ffffff55; box-shadow: 0 0 16px #ffffff40, 0 0 4px #ffffff30; }
-.btn.github:hover { border-color: #ffffffaa; box-shadow: 0 0 26px #ffffff70, 0 0 6px #ffffff60; }
+.btn.github { color: #fff; border: 1px solid #ffffff55;
+  background: linear-gradient(180deg, #4a5058, #24292f 50%, #0b0d10); /* graphite, lit from above like Download */
+  box-shadow: inset 0 1px 0 #ffffff40, 0 0 16px #ffffff40, 0 0 4px #ffffff30; }
+.btn.github:hover { border-color: #ffffffaa; box-shadow: inset 0 1px 0 #ffffff60, 0 0 26px #ffffff70, 0 0 6px #ffffff60; }
 .btn.primary { color: #1a0d00; background: linear-gradient(180deg, var(--gold-2), var(--gold) 55%, var(--fire)); box-shadow: 0 0 18px #ff9a0055; }
 .btn.primary:hover { box-shadow: 0 0 28px #ffae00aa, 0 0 6px #ffd51f; }
 .btn.wide { width: 100%; }

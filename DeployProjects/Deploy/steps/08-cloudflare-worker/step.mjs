@@ -40,7 +40,7 @@ export default {
     { name: "OVH_FLAVORS", f: F.flavors, required: true, def: "c3-8,b3-16", about: "VM sizes to try, in order" },
     S.OVH_IMAGE,
     S.VM_NAME,
-    { name: "GAME_ZIP_URL", f: F.urlOrNone, required: true, about: "Game.zip the VM downloads (root holds bin/ and data/); none = no game files (test server)" },
+    { name: "GAME_ZIP_URL", f: F.urlOrNone, required: true, def: "none", about: "Game.zip the VM downloads (root holds bin/ and data/); empty or none = no game files (test server)" },
     { name: "SSH_PUBLIC_KEY", f: F.sshKey, about: "your public SSH key: every VM lets it in for user debian (logs, debugging)" },
     { name: "START_COOLDOWN_HOURS", f: F.number, required: true, def: "20", about: "one Start per IP / Discord user per this many hours" },
     { name: "DISCORD_ADMIN_ROLE", f: F.snowflake, about: "Discord role id: no cooldown, may /stop" },
@@ -50,6 +50,7 @@ export default {
   ],
 
   async deploy(E, R) {
+    if (E.GAME_ZIP_URL === "none") R.warn("GAME_ZIP_URL", "none: the VM gets no game files (fine with the 05a test server, not with the real one)");
     // a copy of CF-Worker (+ LazyServer, bundled as userData) with wrangler.toml set to this deployment
     const dir = path.join(BUILD, "DeployProjects");
     fs.rmSync(dir, { recursive: true, force: true });

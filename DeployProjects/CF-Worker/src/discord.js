@@ -14,27 +14,47 @@ export async function discordInteraction(req, env, ctx) {
   const isAdmin = !!env.DISCORD_ADMIN_ROLE && (it.member?.roles || []).includes(env.DISCORD_ADMIN_ROLE);
   // Replies are public in the channel the command was typed in (Discord shows "X used /start" above
   // them), refusals included: support can see what happened right there.
-  const reply = (content) => json({ type: 4, data: { content, allowed_mentions: { parse: [] } } });
   const where = it.channel?.name ? ` in #${it.channel.name}` : it.guild_id ? "" : " in DMs";
+  const cmd = it.data?.name;
 
-  switch (it.data?.name) {
+  // Discord waits only 3 s for an answer, and /start asks OVH (VM list, month's cost) first. So we
+  // answer "thinking..." at once (type 5) and edit that message with the result when the work is done.
+  ctx.waitUntil((async () => {
+    let content;
+    try {
+      content = await runCommand(env, ctx, cmd, user, where, isAdmin);
+    } catch (e) {
+      console.error(`/${cmd} failed:`, e.stack || e);
+      content = `Something went wrong: ${String(e.message || e).slice(0, 300)}`;
+    }
+    const r = await fetch(`https://discord.com/api/v10/webhooks/${it.application_id}/${it.token}/messages/@original`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+    }).catch((e) => ({ ok: false, status: 0, text: async () => String(e) }));
+    if (!r.ok) console.error(`/${cmd}: editing the reply failed: ${r.status} ${await r.text()}`);
+  })());
+  return json({ type: 5 });
+}
+
+async function runCommand(env, ctx, cmd, user, where, isAdmin) {
+  switch (cmd) {
     case "status": {
       const st = await readStatus(env);
       const log = st.log.map((l) => `<t:${Math.floor(l.t / 1000)}:t> ${l.msg}`).join("\n");
-      return reply(`**State:** ${st.state}\n${log || "(no events yet)"}`);
+      return `**State:** ${st.state}\n${log || "(no events yet)"}`;
     }
     case "start": {
       const res = await startVm(env, ctx, `Discord: ${user.username}${where}`, isAdmin ? null : `discord_${user.id}`);
-      if (res.error === "cooldown") return reply(`You already used Start today. Try again in ~${res.retryAfterHours}h.`);
-      return reply(res.ok ? "Starting the server... follow with `/status`." : `Not started: ${res.message || res.error}.`);
+      if (res.error === "cooldown") return `You already used Start today. Try again in ~${res.retryAfterHours}h.`;
+      return res.ok ? "Starting the server... follow with `/status`." : `Not started: ${res.message || res.error}.`;
     }
     case "stop": {
-      if (!isAdmin) return reply("Only admins can stop the server.");
+      if (!isAdmin) return "Only admins can stop the server.";
       await requestStop(env, `Stop by ${user.username}${where}`);
-      return reply("The server will sync and shut down within a minute or two.");
+      return "The server will sync and shut down within a minute or two.";
     }
   }
-  return reply("Unknown command.");
+  return "Unknown command.";
 }
 
 async function signatureOk(env, req, body) {

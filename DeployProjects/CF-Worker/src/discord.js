@@ -75,10 +75,13 @@ async function signatureOk(env, req, body) {
 }
 
 // A message in the community channel (DISCORD_WEBHOOK_URL, optional). Never fails the caller.
+// Starts with <t:unix:t>, like /status: Discord shows the time in each reader's own time zone, and
+// the full date on hover.
 export async function discordPost(env, content) {
   if (!env.DISCORD_WEBHOOK_URL) return;
+  const at = `<t:${Math.floor(Date.now() / 1000)}:t>`;
   await fetch(env.DISCORD_WEBHOOK_URL, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ content: maskIps(content), allowed_mentions: { parse: [] } }),
+    body: JSON.stringify({ content: `${at} ${maskIps(content)}`, allowed_mentions: { parse: [] } }),
   }).catch(() => {});
 }

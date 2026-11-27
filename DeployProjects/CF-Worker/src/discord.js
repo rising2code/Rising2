@@ -51,14 +51,15 @@ async function runCommand(env, ctx, cmd, user, where, isAdmin) {
       return `**State:** ${st.state}${who}\n${log || "(no events yet)"}`;
     }
     case "start": {
-      const by = { web: `Discord: ${user.ref.web}${where.web}`, discord: `Discord: ${user.ref.discord}${where.discord}` };
+      // the mention version everywhere (website log too), so Discord's /status shows it clickable
+      const by = `Discord: ${user.ref.discord}${where.discord}`;
       const res = await startVm(env, ctx, by, isAdmin ? null : `discord_${user.id}`);
       if (res.error === "cooldown") return `You already used Start today. Try again in ~${res.retryAfterHours}h.`;
       return res.ok ? "Starting the server... follow with `/status`." : `Not started: ${res.message || res.error}.`;
     }
     case "stop": {
       if (!isAdmin) return "Only admins can stop the server.";
-      await requestStop(env, { web: `Stop by ${user.ref.web}${where.web}`, discord: `Stop by ${user.ref.discord}${where.discord}` });
+      await requestStop(env, `Stop by ${user.ref.discord}${where.discord}`);
       return "The server will sync and shut down within a minute or two.";
     }
   }

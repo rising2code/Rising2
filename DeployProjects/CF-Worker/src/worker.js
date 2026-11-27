@@ -12,7 +12,7 @@ import { webStart } from "./web.js";
 import { discordInteraction } from "./discord.js";
 import { addEvent, setPlayers, teardown, startVm, requestStop } from "./server.js";
 import { readStatus, stopRequested, setDns, r2File } from "./cloudflare.js";
-import { json } from "./util.js";
+import { json, maskDiscordIds } from "./util.js";
 
 export default {
   async fetch(req, env, ctx) {
@@ -22,7 +22,11 @@ export default {
       if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
 
       // ---- public ----
-      if (path === "/status" && req.method === "GET") return cors(json(await readStatus(env)));
+      if (path === "/status" && req.method === "GET") {
+        const st = await readStatus(env);
+        st.log = st.log.map((l) => ({ ...l, msg: maskDiscordIds(l.msg) })); // web only: no full Discord ids
+        return cors(json(st));
+      }
       if (path === "/start" && req.method === "POST") return cors(await webStart(req, env, ctx));
       if (path === "/discord" && req.method === "POST") return await discordInteraction(req, env, ctx);
 

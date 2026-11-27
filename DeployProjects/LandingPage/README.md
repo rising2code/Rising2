@@ -8,7 +8,8 @@ Sections: banner with **Direct download** + Discord, live server status, "why Ri
 
 * Live server status from `GET /api/status` (refreshes every 8 s while starting/stopping, else every minute).
 * One Cloudflare Turnstile check under the logo unlocks everything: the page trades its token for a
-  one-hour pass (`POST /api/session`) and sends it as `x-pass` with every call. Until then the status,
+  10-minute pass bound to the visitor's IP (`POST /api/session`, renewed with each new token, ~5 min)
+  and sends it as `x-pass` with every call. Until then the status,
   the links (Discord, GitHub, download: from R2 `site/urls.json`) and the file archive
   (`site/s3files.json`, 10-minute signed S3 links) stay locked, so crawlers get nothing.
 * When the server is asleep: **Wake the server** -> `POST /api/start` (once a day per IP).

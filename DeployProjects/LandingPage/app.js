@@ -136,7 +136,8 @@ $("#lang").onclick = () => {
   applyLang();
 };
 
-// ---- the human check: one Turnstile token -> a one-hour pass from the worker (x-pass on every call) ----
+// ---- the human check: each Turnstile token -> a 10-minute pass for this IP (x-pass on every call); the
+// widget renews its token every ~5 min, so an open page stays unlocked ----
 // Until then the status, the links and the archive are locked. The pass lives in memory only: every
 // page load (and reload) passes the check again.
 let pass = null, widget = null, unlocked = false;

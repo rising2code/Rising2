@@ -3,7 +3,7 @@
 // No dependencies: fetch, WebCrypto and the R2 binding only. Wrangler bundles the modules.
 //
 // This file is the list of every inbound call (the whole API); the work is done in:
-//   gate.js       website: the Turnstile check -> a one-hour pass for every website call
+//   gate.js       website: the Turnstile check -> a 10-minute, IP-bound pass for every website call
 //   web.js        website: Start button
 //   files.js      website: links (urls.json), the archive list (s3files.json), signed S3 downloads
 //   discord.js    Discord: slash commands + webhook posts

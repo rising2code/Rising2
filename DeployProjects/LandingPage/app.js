@@ -22,6 +22,7 @@ const T = {
     "text.stopping": "השרת שומר נתונים ונכבה.",
     "text.error": "משהו השתבש בהפעלה. נסו שוב או כתבו בדיסקורד.",
     "text.unknown": "לא הצלחנו לקרוא את מצב השרת.",
+    "players.0": "אין שחקנים מחוברים כרגע", "players.1": "שחקן אחד מחובר", "players.n": "{n} שחקנים מחוברים",
     "start.hint": "אישור קצר שאתם לא בוט, ואז השרת מתחיל לעלות.",
     "start.btn": "העירו את השרת", "start.sending": "שולח…", "start.ok": "הבקשה התקבלה, השרת עולה!",
     "start.captcha": "אימות נכשל - נסו שוב.", "start.cooldown": "כבר הפעלתם היום. נסו שוב בעוד ~{h} שעות.",
@@ -66,6 +67,7 @@ const T = {
     "text.stopping": "The server is saving and shutting down.",
     "text.error": "Something went wrong while starting. Try again or ask on Discord.",
     "text.unknown": "Couldn't read the server status.",
+    "players.0": "Nobody online right now", "players.1": "1 player online", "players.n": "{n} players online",
     "start.hint": "A quick check that you're not a bot, then the server starts.",
     "start.btn": "Wake the server", "start.sending": "Sending…", "start.ok": "Got it, the server is starting!",
     "start.captcha": "Check failed - try again.", "start.cooldown": "You already started it today. Try again in ~{h} h.",
@@ -321,6 +323,10 @@ function renderStatus() {
   pill.className = `pill ${st}`;
   pill.textContent = t(`state.${st}`);
   $("#status-text").textContent = t(`text.${st}`);
+  // players: only while up, and only a real count (missing / null = the VM hasn't said yet)
+  const n = st === "up" && Number.isInteger(status?.players) ? status.players : null;
+  $("#players").hidden = n === null;
+  if (n !== null) $("#players").textContent = t(n === 0 ? "players.0" : n === 1 ? "players.1" : "players.n", { n });
   const fmt = new Intl.DateTimeFormat(lang === "he" ? "he-IL" : "en-GB", { hour: "2-digit", minute: "2-digit" });
   $("#log").replaceChildren(...(status?.log || []).slice(-5).reverse().map((l) => {
     const li = document.createElement("li");

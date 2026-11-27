@@ -10,7 +10,7 @@
 //   cloudflare.js Cloudflare: R2 (status, stop flag, rate limit, files), DNS, Turnstile
 import { webStart } from "./web.js";
 import { discordInteraction } from "./discord.js";
-import { addEvent, teardown, startVm, requestStop } from "./server.js";
+import { addEvent, setPlayers, teardown, startVm, requestStop } from "./server.js";
 import { readStatus, stopRequested, setDns, r2File } from "./cloudflare.js";
 import { json } from "./util.js";
 
@@ -31,6 +31,11 @@ export default {
       if (path === "/event" && req.method === "POST") {
         const { msg, state } = await req.json();
         await addEvent(env, String(msg || "").slice(0, 300), state);
+        return json({ ok: true });
+      }
+      if (path === "/players" && req.method === "POST") {
+        const { players } = await req.json().catch(() => ({}));
+        await setPlayers(env, players);
         return json({ ok: true });
       }
       if (path === "/dns" && req.method === "POST") {

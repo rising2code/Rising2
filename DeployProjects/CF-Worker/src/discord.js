@@ -41,7 +41,8 @@ async function runCommand(env, ctx, cmd, user, where, isAdmin) {
     case "status": {
       const st = await readStatus(env);
       const log = st.log.map((l) => `<t:${Math.floor(l.t / 1000)}:t> ${l.msg}`).join("\n");
-      return `**State:** ${st.state}\n${log || "(no events yet)"}`;
+      const who = st.state === "up" && Number.isInteger(st.players) ? ` - ${st.players} player${st.players === 1 ? "" : "s"} online` : "";
+      return `**State:** ${st.state}${who}\n${log || "(no events yet)"}`;
     }
     case "start": {
       const res = await startVm(env, ctx, `Discord: ${user.username}${where}`, isAdmin ? null : `discord_${user.id}`);

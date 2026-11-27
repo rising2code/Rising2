@@ -72,10 +72,20 @@ export async function teardown(env, why) {
   if (cost) await discordPost(env, `This month's server cost so far: ${fmtCost(cost)}. Thanks for keeping it fan-funded!`);
 }
 
+// The VM's player count (POST /players, only when it changes). Anything but a sane whole number is
+// stored as null = unknown. No log line and no Discord post: it changes too often for that.
+export async function setPlayers(env, n) {
+  const st = await readStatus(env);
+  st.players = Number.isInteger(n) && n >= 0 && n < 10000 ? n : null;
+  st.playersAt = Date.now();
+  await writeStatus(env, st);
+}
+
 // One line in the public status log (and the Discord channel), optionally a new state.
 export async function addEvent(env, msg, state) {
   const st = await readStatus(env);
   if (state) st.state = state;
+  if (state && state !== "up") { delete st.players; delete st.playersAt; } // a count only means something while up
   st.updated = Date.now();
   if (msg) st.log = [...st.log, { t: st.updated, msg }].slice(-LOG_KEEP);
   await writeStatus(env, st);

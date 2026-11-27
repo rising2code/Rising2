@@ -173,10 +173,22 @@ except Exception:
     print(-1)'
 }
 
+# The player count for the landing page / Discord /status (GET /api/status "players"). Sent only
+# when it changed, so a quiet server costs no requests; -1 (unknown) is sent as null.
+report_players() {
+  local n last
+  n=$(players_online)
+  last=$(cat "$APP/players_reported" 2>/dev/null || echo none)
+  [ "$n" = "$last" ] && return 0
+  local v=$n; [ "$n" -ge 0 ] 2>/dev/null || v=null
+  api POST /players -H "content-type: application/json" -d "{\"players\":$v}" >/dev/null && echo "$n" >"$APP/players_reported"
+}
+
 tick() {
   exec 9>/run/rising2.lock; flock -n 9 || exit 0
 
   if api GET /should-stop 2>/dev/null | grep -q '"stop":true'; then teardown_now "Stop requested"; fi
+  report_players
 
   [ $((10#$(date +%M) % 15)) -eq 0 ] || exit 0
   sync_up

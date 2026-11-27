@@ -3,8 +3,10 @@
 # Uploaded to R2 by Deploy step 05a (05b uploads the real ../docker-compose.yml instead).
 #
 #   hello   http://ip.<domain>/            a "test server is up" page
-#           http://127.0.0.1/rising2/status  {"servers": []} = 0 players, so the idle check counts and
-#                                           the VM tears itself down after ~30 min, like a real empty server
+#           http://127.0.0.1/rising2/status  one server with TEST_PLAYERS players (test.env). 0 (default) =
+#                                           the idle check counts and the VM tears itself down after ~30 min,
+#                                           like a real empty server; more = the landing page shows that
+#                                           many online and the VM stays up until /stop or 05:00
 #   dozzle  every container's live logs, on the VM only (127.0.0.1:8080). From your PC:
 #             ssh -L 8080:localhost:8080 root@ip.<domain>     then open http://localhost:8080
 #           (needs SSH_PUBLIC_KEY in Deploy step 08, so the VM lets your key in)
@@ -14,12 +16,14 @@ services:
     image: busybox:1.37.0
     restart: unless-stopped
     ports: ["80:80"]
+    environment:
+      TEST_PLAYERS: ${TEST_PLAYERS:-0}
     command:
       - sh
       - -c
       - |
         mkdir -p /www/rising2
-        echo '{"servers": []}' > /www/rising2/status
+        echo "{\"servers\": [{\"keys\": {\"numplayers\": \"$${TEST_PLAYERS}\"}}]}" > /www/rising2/status
         echo "<h1>Rising2 test server</h1><p>${TEST_MESSAGE:-Up.} Logs: Dozzle on 127.0.0.1:8080 through SSH.</p>" > /www/index.html
         exec httpd -f -v -p 80 -h /www
 

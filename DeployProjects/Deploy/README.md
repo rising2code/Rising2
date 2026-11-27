@@ -113,6 +113,8 @@ Optional in any `step.env`: `WAIT_MIN` (how long to wait for the provider) and `
    `SSH_PUBLIC_KEY` to your public key (the `.pub` file's one line).
 2. Start a VM (10, Discord `/start` or the site). It boots, points `ip.<domain>` at itself, serves a
    "Rising2 test server" page on `http://ip.<domain>/`, and tears itself down after ~30 min with no players.
+   To see a player count on the site and in `/status` (`"players"` in `/api/status`), set `TEST_PLAYERS=3` in
+   `LazyServer/test-server/test.env` and run **05a** again before the start; the VM then stays up until `/stop` or 05:00.
 3. Logs of every container: `ssh -L 8080:localhost:8080 root@ip.<domain>`, then open http://localhost:8080 (Dozzle).
    The VM's own logs: `sudo cat /var/log/rising2-init.log`, `journalctl -t rising2`.
 4. When the real compose is ready: **05b**, and `GAME_ZIP_URL` back to the real zip in **08**.

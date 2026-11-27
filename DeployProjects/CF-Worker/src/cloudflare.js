@@ -1,7 +1,9 @@
 // Cloudflare services: R2 (status, stop flag, rate limit, the VM's files), DNS and Turnstile.
 import { json } from "./util.js";
 
-const STATUS_KEY = "functions/vm_status.txt"; // {state, updated, log: [last 10 {t, msg}]}
+// {state, updated, log: [last 10 {t, msg}], players?, playersAt?} - players is set only while the
+// VM is up and reporting (a number, or null = unknown); older files simply don't have it.
+const STATUS_KEY = "functions/vm_status.txt";
 const STOP_KEY = "functions/stop_request";    // present = the VM should sync and tear itself down
 
 // ---- status (public, GET /status) ----

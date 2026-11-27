@@ -114,6 +114,8 @@ h1 { font: 700 clamp(1.8rem, 4.4vw, 3rem)/1.2 Consolas, "Lucida Console", "Couri
 .pill.up::before, .pill.starting::before { content: "●"; margin-inline-end: .35em; animation: blink 1.4s infinite; }
 @keyframes blink { 50% { opacity: .2; } }
 .status-text { margin: .75rem 0; }
+.players { margin: -.25rem 0 .75rem; font-weight: 700; color: var(--ok); }
+.players::before { content: "👥"; margin-inline-end: .4em; }
 .log { list-style: none; margin: 0 0 1rem; padding: .5rem .75rem; border-radius: 6px; background: #00140899;
   font: .85rem/1.5 Consolas, monospace; color: var(--muted); direction: ltr; text-align: left; min-height: 2.5rem; }
 .log:empty { display: none; }

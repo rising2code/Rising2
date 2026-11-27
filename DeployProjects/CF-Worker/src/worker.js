@@ -14,8 +14,8 @@ import { webStart } from "./web.js";
 import { webSession, passOk } from "./gate.js";
 import { getLinks, getFiles, signFile } from "./files.js";
 import { discordInteraction } from "./discord.js";
-import { addEvent, setPlayers, teardown, startVm, requestStop } from "./server.js";
-import { readStatus, stopRequested, setDns, r2File } from "./cloudflare.js";
+import { addEvent, setPlayers, teardown, startVm, requestStop, currentStatus } from "./server.js";
+import { stopRequested, setDns, r2File } from "./cloudflare.js";
 import { json, maskDiscordIds } from "./util.js";
 
 export default {
@@ -33,7 +33,7 @@ export default {
       const web = ["/status", "/start", "/links", "/get-files", "/sign-s3-1"].includes(path);
       if (web && !(await passOk(env, req)) && !authed(req, env)) return cors(json({ error: "pass" }, 401));
       if (path === "/status" && req.method === "GET") {
-        const st = await readStatus(env);
+        const st = await currentStatus(env);
         st.log = st.log.map((l) => ({ ...l, msg: maskDiscordIds(l.msg) })); // web only: no full Discord ids
         return cors(json(st));
       }

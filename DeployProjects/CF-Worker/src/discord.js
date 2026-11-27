@@ -1,6 +1,5 @@
 // Discord-facing: the /start /stop /status slash commands, and posts to the channel webhook.
-import { startVm, requestStop } from "./server.js";
-import { readStatus } from "./cloudflare.js";
+import { startVm, requestStop, currentStatus } from "./server.js";
 import { json, unhex, maskIps } from "./util.js";
 
 // POST /discord: Discord's interactions endpoint (signed with the app's Ed25519 key).
@@ -45,7 +44,7 @@ export async function discordInteraction(req, env, ctx) {
 async function runCommand(env, ctx, cmd, user, where, isAdmin) {
   switch (cmd) {
     case "status": {
-      const st = await readStatus(env);
+      const st = await currentStatus(env);
       const log = st.log.map((l) => `<t:${Math.floor(l.t / 1000)}:t> ${l.msg}`).join("\n");
       const who = st.state === "up" && Number.isInteger(st.players) ? ` - ${st.players} player${st.players === 1 ? "" : "s"} online` : "";
       return `**State:** ${st.state}${who}\n${log || "(no events yet)"}`;

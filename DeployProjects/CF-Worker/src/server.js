@@ -1,7 +1,7 @@
 // The game VM's life cycle: may we start one, start, stop, tear down, and the status log.
 // Uses ovh.js for the VM itself, cloudflare.js for state in R2 + DNS, discord.js to tell the channel.
 import { listInstances, findInstance, createInstance, deleteInstance, monthCost, fmtCost } from "./ovh.js";
-import { readStatus, writeStatus, cooldown, setStopRequest, clearStopRequest, setDns } from "./cloudflare.js";
+import { readStatus, writeStatus, cooldown, setStopRequest, clearStopRequest, stopRequestedAt, setDns } from "./cloudflare.js";
 import { discordPost } from "./discord.js";
 import { maskIps } from "./util.js";
 
@@ -53,6 +53,21 @@ export async function startVm(env, ctx, by, cooldownKey) {
       .catch((e) => addEvent(env, `Start failed: ${e.message}`, "off")),
   );
   return { ok: true, state: "starting" };
+}
+
+// The status as the website and Discord /status show it. A stop flag older than an hour while the
+// state still says "stopping" means the stop is long done - or there was no VM to stop (a /stop with
+// nothing running): nothing else would ever end that "stopping", and the site hides Start while it
+// lasts. So: clear the flag, call it off. Costs one R2 HEAD, and only in the "stopping" state.
+// (STOP_STALE_MIN is only for testing; a VM still alive after that is caught by /start's OVH check.)
+export async function currentStatus(env) {
+  const st = await readStatus(env);
+  if (st.state !== "stopping") return st;
+  const at = await stopRequestedAt(env);
+  if (at === null || Date.now() - at < Number(env.STOP_STALE_MIN || 60) * 60e3) return st;
+  await clearStopRequest(env);
+  await addEvent(env, "The stop request is over an hour old: the server is off", "off");
+  return readStatus(env);
 }
 
 // Graceful: the VM sees the flag within a minute, syncs to R2, then calls /teardown.

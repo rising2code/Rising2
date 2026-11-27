@@ -23,6 +23,8 @@ export async function writeStatus(env, st) {
 
 export const setStopRequest = (env, why) => env.R2.put(STOP_KEY, why);
 export const clearStopRequest = (env) => env.R2.delete(STOP_KEY);
+// when the flag was written (ms), or null: every /stop rewrites it, so this is the latest stop
+export const stopRequestedAt = async (env) => (await env.R2.head(STOP_KEY))?.uploaded?.getTime() ?? null;
 export const stopRequested = async (env) => !!(await env.R2.head(STOP_KEY));
 
 // ---- rate limit ----

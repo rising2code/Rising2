@@ -34,7 +34,7 @@ x-logging: &logging
 services:
   # Mock GameSpy (GameSpy_UnifiedServer)
   gamespy:
-    image: ${IMG_GAMESPY:-yonixw/rising2-gamespy-mock-server:latest}
+    image: ${IMG_GAMESPY:-rising2code/rising2-gamespy-mock-server:latest}
     restart: unless-stopped
     network_mode: host
     logging: *logging
@@ -52,7 +52,7 @@ services:
 
   # Official rules: ranked play, stats saved
   official:
-    image: ${IMG_DEDICATED:-yonixw/rising2-re-dedicated-server:latest}
+    image: ${IMG_DEDICATED:-rising2code/rising2-re-dedicated-server:latest}
     restart: unless-stopped
     network_mode: host
     depends_on: [gamespy]
@@ -68,7 +68,7 @@ services:
 
   # Fun server: custom rotation / rules (set the profile in .env)
   fun:
-    image: ${IMG_DEDICATED:-yonixw/rising2-re-dedicated-server:latest}
+    image: ${IMG_DEDICATED:-rising2code/rising2-re-dedicated-server:latest}
     restart: unless-stopped
     network_mode: host
     depends_on: [gamespy]

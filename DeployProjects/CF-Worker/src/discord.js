@@ -14,7 +14,13 @@ export async function discordInteraction(req, env, ctx) {
   const isAdmin = !!env.DISCORD_ADMIN_ROLE && (it.member?.roles || []).includes(env.DISCORD_ADMIN_ROLE);
   // Replies are public in the channel the command was typed in (Discord shows "X used /start" above
   // them), refusals included: support can see what happened right there.
-  const where = it.channel?.name ? ` in #${it.channel.name}` : it.guild_id ? "" : " in DMs";
+  // Who/where, twice: plain names for the website's log, mentions for Discord (clickable there,
+  // and no one is pinged: every post has allowed_mentions parse: []).
+  const where = {
+    web: it.channel?.name ? ` in #${it.channel.name}` : it.guild_id ? "" : " in DMs",
+    discord: it.guild_id && it.channel_id ? ` in <#${it.channel_id}>` : it.guild_id ? "" : " in DMs",
+  };
+  user.ref = { web: user.username, discord: user.id ? `<@${user.id}>` : user.username };
   const cmd = it.data?.name;
 
   // Discord waits only 3 s for an answer, and /start asks OVH (VM list, month's cost) first. So we
@@ -45,13 +51,14 @@ async function runCommand(env, ctx, cmd, user, where, isAdmin) {
       return `**State:** ${st.state}${who}\n${log || "(no events yet)"}`;
     }
     case "start": {
-      const res = await startVm(env, ctx, `Discord: ${user.username}${where}`, isAdmin ? null : `discord_${user.id}`);
+      const by = { web: `Discord: ${user.ref.web}${where.web}`, discord: `Discord: ${user.ref.discord}${where.discord}` };
+      const res = await startVm(env, ctx, by, isAdmin ? null : `discord_${user.id}`);
       if (res.error === "cooldown") return `You already used Start today. Try again in ~${res.retryAfterHours}h.`;
       return res.ok ? "Starting the server... follow with `/status`." : `Not started: ${res.message || res.error}.`;
     }
     case "stop": {
       if (!isAdmin) return "Only admins can stop the server.";
-      await requestStop(env, `Stop by ${user.username}${where}`);
+      await requestStop(env, { web: `Stop by ${user.ref.web}${where.web}`, discord: `Stop by ${user.ref.discord}${where.discord}` });
       return "The server will sync and shut down within a minute or two.";
     }
   }

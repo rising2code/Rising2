@@ -46,7 +46,7 @@ export async function startVm(env, ctx, by, cooldownKey) {
   }
 
   await clearStopRequest(env);
-  await addEvent(env, `Start requested (${by})`, "starting");
+  await addEvent(env, wrap(by, (s) => `Start requested (${s})`), "starting");
   ctx.waitUntil(
     createInstance(env, (msg) => addEvent(env, msg, "starting"), (msg) => addEvent(env, msg))
       .catch((e) => addEvent(env, `Start failed: ${e.message}`, "off")),
@@ -56,8 +56,8 @@ export async function startVm(env, ctx, by, cooldownKey) {
 
 // Graceful: the VM sees the flag within a minute, syncs to R2, then calls /teardown.
 export async function requestStop(env, why) {
-  await setStopRequest(env, why);
-  await addEvent(env, `${why}: stopping after a final sync...`, "stopping");
+  await setStopRequest(env, forWeb(why));
+  await addEvent(env, wrap(why, (s) => `${s}: stopping after a final sync...`), "stopping");
 }
 
 // Called by the VM after its final sync: delete it and park the DNS name.
@@ -81,13 +81,19 @@ export async function setPlayers(env, n) {
   await writeStatus(env, st);
 }
 
+// A log line can read differently per audience: { web, discord }, where Discord gets clickable
+// <@user> / <#channel> mentions and the website plain names. A plain string is the same for both.
+export const forWeb = (m) => (typeof m === "string" ? m : m?.web ?? "");
+const forDiscord = (m) => (typeof m === "string" ? m : m?.discord ?? m?.web ?? "");
+const wrap = (m, f) => ({ web: f(forWeb(m)), discord: f(forDiscord(m)) });
+
 // One line in the public status log (and the Discord channel), optionally a new state.
 export async function addEvent(env, msg, state) {
   const st = await readStatus(env);
   if (state) st.state = state;
   if (state && state !== "up") { delete st.players; delete st.playersAt; } // a count only means something while up
   st.updated = Date.now();
-  if (msg) st.log = [...st.log, { t: st.updated, msg }].slice(-LOG_KEEP);
+  if (forWeb(msg)) st.log = [...st.log, { t: st.updated, msg: forWeb(msg) }].slice(-LOG_KEEP);
   await writeStatus(env, st);
-  if (msg) await discordPost(env, `\`[${st.state}]\` ${msg}`);
+  if (forDiscord(msg)) await discordPost(env, `\`[${st.state}]\` ${forDiscord(msg)}`);
 }

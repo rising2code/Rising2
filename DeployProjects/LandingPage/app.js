@@ -137,9 +137,9 @@ $("#lang").onclick = () => {
 };
 
 // ---- the human check: one Turnstile token -> a one-hour pass from the worker (x-pass on every call) ----
-// Until then the status, the links and the archive are locked. The pass is kept for this tab only.
+// Until then the status, the links and the archive are locked. The pass lives in memory only: every
+// page load (and reload) passes the check again.
 let pass = null, widget = null, unlocked = false;
-try { const p = JSON.parse(sessionStorage.getItem("pass") || "null"); if (p && p.exp > Date.now() + 60e3) pass = p; } catch {}
 const LINKS = ["discord", "github", "download"];
 LINKS.forEach((k) => $$(`[data-${k}]`).forEach((a) => { a.classList.add("locked"); a.removeAttribute("target"); a.href = "#gate"; }));
 
@@ -151,7 +151,6 @@ window.onTurnstile = () => {
         const r = await fetch(`${CONFIG.api}/session`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) });
         if (!r.ok) throw new Error(r.status);
         pass = await r.json();
-        try { sessionStorage.setItem("pass", JSON.stringify(pass)); } catch {}
         unlock();
       } catch { gateMsg("gate.fail"); }
     },
@@ -165,7 +164,6 @@ async function api(path, opts = {}) {
   const r = await fetch(`${CONFIG.api}${path}`, { cache: "no-store", ...opts, headers: { ...(opts.headers || {}), "x-pass": pass?.pass || "" } });
   if (r.status === 401) {
     pass = null; unlocked = false;
-    try { sessionStorage.removeItem("pass"); } catch {}
     gateMsg("gate.hint");
     if (widget !== null) turnstile.reset(widget);
   }
@@ -462,5 +460,4 @@ $("#start").onsubmit = async (e) => {
 };
 
 applyLang();
-if (pass) unlock(); // this tab already passed the check within the hour
-else renderStatus();
+renderStatus(); // locked until the check passes

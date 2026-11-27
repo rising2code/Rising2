@@ -31,6 +31,23 @@ export default {
     const set = (key, val) => { if (val) js = js.replace(new RegExp(`(${key}: )"[^"]*"`), `$1${JSON.stringify(val)}`); };
     set("turnstileSiteKey", E.TURNSTILE_SITEKEY); set("discord", E.DISCORD_INVITE); set("download", E.DOWNLOAD_URL);
     fs.writeFileSync(path.join(out, "app.js"), js);
+
+    // Which build is live: the commit (step.ps1 / step.sh pass GIT_COMMIT, "+dirty" = uncommitted
+    // changes) and the deploy time, in small grey text in the footer. The same stamp goes on the
+    // app.js / style.css links, so a new deploy is new URLs and no browser keeps an old copy.
+    const when = new Date().toISOString().slice(0, 16).replace("T", " ");
+    const build = `${process.env.GIT_COMMIT || "no-git"} · ${when} UTC`;
+    const v = encodeURIComponent(`${process.env.GIT_COMMIT || "x"}-${Date.now().toString(36)}`);
+    let html = fs.readFileSync(path.join(out, "index.html"), "utf8");
+    html = html.replace('src="app.js"', `src="app.js?v=${v}"`).replace('href="style.css"', `href="style.css?v=${v}"`)
+      .replace('<p class="build" dir="ltr">dev</p>', `<p class="build" dir="ltr">${build}</p>`);
+    fs.writeFileSync(path.join(out, "index.html"), html);
+    // Pages' default lets browsers keep a file for up to 4 h: make them ask every time instead
+    // (an unchanged file is a tiny 304). Images keep the default.
+    fs.writeFileSync(path.join(out, "_headers"), ["/", "/index.html", "/app.js", "/style.css"]
+      .map((p) => `${p}\n  Cache-Control: no-cache\n`).join(""));
+    R.ok("build", build);
+
     if (!E.DISCORD_INVITE) R.warn("DISCORD_INVITE", "not set: the Discord buttons keep the placeholder link");
     if (!E.DOWNLOAD_URL) R.warn("DOWNLOAD_URL", "not set: the download buttons keep the placeholder link");
 

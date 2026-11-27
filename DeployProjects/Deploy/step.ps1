@@ -16,6 +16,9 @@ docker image inspect $image *> $null
 if ($Rebuild -or $LASTEXITCODE -ne 0) { docker build -t $image $here; if ($LASTEXITCODE) { exit 1 } }
 
 $run = @("run", "--rm", "-v", "${root}:/app:ro", "-v", "${here}/out:/out")
+# the commit being deployed (shown on the site by step 07); "+dirty" if DeployProjects has uncommitted changes
+$commit = git -C $root rev-parse --short HEAD 2>$null
+if ($commit) { if (git -C $root status --porcelain -- . 2>$null) { $commit += "+dirty" }; $run += @("-e", "GIT_COMMIT=$commit") }
 if ($Step -notin @("list", "token")) {
   # exact name, name without its number, or else a prefix that matches only one step ("06", "05a", "cloudflare-p")
   $all = Get-ChildItem (Join-Path $here "steps") -Directory | Where-Object { Test-Path (Join-Path $_.FullName "step.mjs") }

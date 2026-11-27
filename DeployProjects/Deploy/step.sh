@@ -11,6 +11,11 @@ action=${2:-deploy}
 if [ "${REBUILD:-}" = 1 ] || ! docker image inspect "$image" >/dev/null 2>&1; then docker build -t "$image" "$here"; fi
 
 args=(run --rm -v "$root:/app:ro" -v "$here/out:/out")
+# the commit being deployed (shown on the site by step 07); "+dirty" if DeployProjects has uncommitted changes
+if commit=$(git -C "$root" rev-parse --short HEAD 2>/dev/null); then
+  [ -n "$(git -C "$root" status --porcelain -- . 2>/dev/null)" ] && commit="$commit+dirty"
+  args+=(-e "GIT_COMMIT=$commit")
+fi
 if [ "$step" != list ] && [ "$step" != token ]; then
   # exact name, name without its number, or else a prefix that matches only one step ("06", "05a")
   all=$(cd "$here/steps" && for d in */; do [ -f "$d/step.mjs" ] && echo "${d%/}"; done)

@@ -29,6 +29,7 @@ export const F = {
   ovhRegion: { re: /^[A-Z]+\d*(-[A-Z]+-\d+)?(,[A-Z]+\d*(-[A-Z]+-\d+)?)*$/, shape: "OVH region code(s), tried in order: DE1,GRA11 or just GRA11 (others: SBG5, WAW1, UK1, BHS5)" },
   name: { re: /^[a-z0-9][a-z0-9-]{0,62}$/, shape: "lowercase letters, digits and -" },
   yesno: { re: /^(yes|no)$/, shape: "yes or no" },
+  bool: { re: /^(true|false)$/, shape: "true or false" },
   number: { re: /^\d+(\.\d+)?$/, shape: "a number" },
   turnstileSite: { re: /^0x4[\w-]{18,}$/, shape: "starts with 0x4AAAAAAA, ~24 characters (06-cloudflare-turnstile prints it)" },
   turnstileSecret: { re: /^0x4[\w-]{28,}$/, shape: "starts with 0x4AAAAAAA, ~35 characters (06-cloudflare-turnstile prints it)" },
@@ -363,7 +364,7 @@ export function r2Exists(E, key) {
 
 // The website's data (steps 05a / 05b, after the VM's files): site/urls.json from the step's link
 // settings and site/s3files.json from DeployProjects/SiteData. The page gets them from the worker
-// only after its captcha. Kept if already in R2 (edit them there) unless OVERWRITE_SITE=yes.
+// only after its captcha. Kept if already in R2 (edit them there) unless OVERWRITE_SITE=true.
 export function putSiteFiles(E, R) {
   const urls = Object.fromEntries(Object.entries({ discord: E.DISCORD_INVITE, github: E.GITHUB_URL, download: E.DOWNLOAD_URL }).filter(([, v]) => v));
   const files = JSON.parse(fs.readFileSync(path.join(SRC, "SiteData", "s3files.json"), "utf8")); // broken JSON stops here, not on the site
@@ -373,7 +374,7 @@ export function putSiteFiles(E, R) {
   fs.mkdirSync(BUILD, { recursive: true });
   const w = { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID };
   const put = (key, obj, what) => {
-    if (E.OVERWRITE_SITE !== "yes" && r2Exists(E, key)) return R.ok(key, "already in R2 - kept (OVERWRITE_SITE=yes replaces it)");
+    if (E.OVERWRITE_SITE !== "true" && r2Exists(E, key)) return R.ok(key, "already in R2 - kept (OVERWRITE_SITE=true replaces it)");
     if (key.endsWith("urls.json")) for (const k of ["discord", "download"]) if (!urls[k]) R.warn(k, "no link set: the page hides that button");
     const f = path.join(BUILD, path.basename(key));
     fs.writeFileSync(f, JSON.stringify(obj, null, 2) + "\n");

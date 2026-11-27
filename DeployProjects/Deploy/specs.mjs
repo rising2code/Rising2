@@ -37,7 +37,7 @@ export const SITE = [
   { name: "DISCORD_INVITE", f: F.invite, about: "the site's Discord buttons (site/urls.json)" },
   { name: "GITHUB_URL", f: F.url, def: "https://github.com/rising2code/Rising2", about: "the site's GitHub button" },
   { name: "DOWNLOAD_URL", f: F.url, about: "the site's \"1.3GB ZIP download\" buttons" },
-  { name: "OVERWRITE_SITE", f: F.yesno, required: true, def: "no", about: "yes = replace site/urls.json + site/s3files.json if already in R2 (no = keep them, e.g. after editing them in R2)" },
+  { name: "OVERWRITE_SITE", f: F.bool, required: true, def: "false", about: "true = replace site/urls.json + site/s3files.json if already in R2 (false = keep them, e.g. after editing them in R2)" },
 ];
 
 export const ovhKey =(which) => [S.OVH_ENDPOINT, S.OVH_APP_KEY(which), S.OVH_APP_SECRET(which), S.OVH_CONSUMER_KEY(which)];

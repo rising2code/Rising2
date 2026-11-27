@@ -80,16 +80,24 @@ sync_down() {
 
 # The VM is made with no SSH key; if the worker passed one (SSH_PUBLIC_KEY), let it in for the
 # image's default user (debian on OVH's Debian images; else the first normal user).
+# The key gets in as root and as the image's default user (debian). Root logs in with a key only
+# (prohibit-password); cloud images block root over SSH, so a drop-in turns that back on.
 add_ssh_key() {
   case "$SSH_PUBKEY" in ssh-*|ecdsa-*) ;; *) return 0 ;; esac
-  local user home
+  local user home users=root
   user=$(getent passwd debian >/dev/null && echo debian || getent passwd 1000 | cut -d: -f1)
-  [ -n "$user" ] || { log "no default user found for the SSH key"; return 0; }
-  home=$(getent passwd "$user" | cut -d: -f6)
-  install -d -m 700 -o "$user" -g "$user" "$home/.ssh"
-  grep -qxF "$SSH_PUBKEY" "$home/.ssh/authorized_keys" 2>/dev/null || echo "$SSH_PUBKEY" >>"$home/.ssh/authorized_keys"
-  chown "$user:$user" "$home/.ssh/authorized_keys" && chmod 600 "$home/.ssh/authorized_keys"
-  log "SSH key added for $user"
+  [ -n "$user" ] && users="root $user"
+  for user in $users; do
+    home=$(getent passwd "$user" | cut -d: -f6)
+    install -d -m 700 -o "$user" -g "$user" "$home/.ssh"
+    grep -qxF "$SSH_PUBKEY" "$home/.ssh/authorized_keys" 2>/dev/null || echo "$SSH_PUBKEY" >>"$home/.ssh/authorized_keys"
+    chown "$user:$user" "$home/.ssh/authorized_keys" && chmod 600 "$home/.ssh/authorized_keys"
+  done
+  if [ -d /etc/ssh/sshd_config.d ]; then
+    echo "PermitRootLogin prohibit-password" >/etc/ssh/sshd_config.d/00-rising2.conf
+    systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
+  fi
+  log "SSH key added for: $users"
 }
 
 init() {

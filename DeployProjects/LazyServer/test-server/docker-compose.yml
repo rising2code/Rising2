@@ -6,7 +6,7 @@
 #           http://127.0.0.1/rising2/status  {"servers": []} = 0 players, so the idle check counts and
 #                                           the VM tears itself down after ~30 min, like a real empty server
 #   dozzle  every container's live logs, on the VM only (127.0.0.1:8080). From your PC:
-#             ssh -L 8080:localhost:8080 debian@ip.<domain>     then open http://localhost:8080
+#             ssh -L 8080:localhost:8080 root@ip.<domain>     then open http://localhost:8080
 #           (needs SSH_PUBLIC_KEY in Deploy step 08, so the VM lets your key in)
 
 services:

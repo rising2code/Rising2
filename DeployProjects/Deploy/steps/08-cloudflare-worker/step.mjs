@@ -41,7 +41,7 @@ export default {
     S.OVH_IMAGE,
     S.VM_NAME,
     { name: "GAME_ZIP_URL", f: F.urlOrNone, required: true, def: "none", about: "Game.zip the VM downloads (root holds bin/ and data/); empty or none = no game files (test server)" },
-    { name: "SSH_PUBLIC_KEY", f: F.sshKey, about: "your public SSH key: every VM lets it in for user debian (logs, debugging)" },
+    { name: "SSH_PUBLIC_KEY", f: F.sshKey, about: "your public SSH key: every VM lets it in as root and debian (logs, debugging)" },
     { name: "START_COOLDOWN_HOURS", f: F.number, required: true, def: "20", about: "one Start per IP / Discord user per this many hours" },
     { name: "DISCORD_ADMIN_ROLE", f: F.snowflake, about: "Discord role id: no cooldown, may /stop" },
     { name: "MAX_COST_CURRENT", f: F.number, required: true, def: "15", about: "no Start once this month's OVH cost reaches this (EUR)" },

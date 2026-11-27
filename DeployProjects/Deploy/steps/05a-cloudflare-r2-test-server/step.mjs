@@ -9,7 +9,7 @@ export default {
   title: "Cloudflare R2: upload the TEST server (hello page + Dozzle logs) as the VM's compose",
   manual: ["the R2 bucket created by hand: dashboard > R2 > Create bucket (name = R2_BUCKET)",
     "on it, a lifecycle rule: Settings > Object lifecycle rules > prefix ratelimit/, delete after 1 day",
-    "to see the logs: SSH_PUBLIC_KEY in step 08, then ssh -L 8080:localhost:8080 debian@ip.<domain> and open http://localhost:8080",
+    "to see the logs: SSH_PUBLIC_KEY in step 08, then ssh -L 8080:localhost:8080 root@ip.<domain> and open http://localhost:8080",
     "without the game files: GAME_ZIP_URL=none in step 08"],
   waitMin: 2,
   env: [S.CF_API_TOKEN("Account > Workers R2 Storage Edit"), S.CF_ACCOUNT_ID, S.R2_BUCKET],

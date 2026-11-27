@@ -11,9 +11,9 @@ action=${2:-deploy}
 if [ "${REBUILD:-}" = 1 ] || ! docker image inspect "$image" >/dev/null 2>&1; then docker build -t "$image" "$here"; fi
 
 args=(run --rm -v "$root:/app:ro" -v "$here/out:/out")
-# the commit being deployed (shown on the site by step 07); "+dirty" if DeployProjects has uncommitted changes
+# the commit being deployed (shown on the site by 07, an image tag in 04b); "+dirty" = the repo has uncommitted changes
 if commit=$(git -C "$root" rev-parse --short HEAD 2>/dev/null); then
-  [ -n "$(git -C "$root" status --porcelain -- . 2>/dev/null)" ] && commit="$commit+dirty"
+  [ -n "$(git -C "$root" status --porcelain 2>/dev/null)" ] && commit="$commit+dirty"
   args+=(-e "GIT_COMMIT=$commit")
 fi
 if [ "$step" != list ] && [ "$step" != token ]; then
@@ -29,5 +29,9 @@ if [ "$step" != list ] && [ "$step" != token ]; then
   env="$here/steps/$dir/step.env"
   [ -f "$env" ] || { echo "Missing $env - cp $here/steps/$dir/step.env.example $env and fill it in"; exit 1; }
   args+=(--env-file "$env"); step=$dir
+  # Docker Hub steps (needsDocker: true): build and push through the local Docker, from the whole repo
+  if grep -q "needsDocker: true" "$here/steps/$dir/step.mjs"; then
+    args+=(-v /var/run/docker.sock:/var/run/docker.sock -v "$(dirname "$root"):/repo:ro")
+  fi
 fi
 exec docker "${args[@]}" "$image" "$step" "$action"

@@ -8,8 +8,13 @@ thing, has its **own** `step.env` (nothing is shared between steps), and has:
 * **undeploy**: removes what that step created, so a failed deploy can start clean.
 * **check**: only validates its `step.env`: what's missing, and values that don't look right.
 
-Everything runs in a small Docker image (node + wrangler), so nothing is installed on your machine.
-The code is mounted, not baked in: edit and rerun, no rebuild.
+Everything runs in a small Docker image (node + wrangler + the docker CLI), so nothing is installed on
+your machine. The code is mounted, not baked in: edit and rerun, no rebuild (only a change to
+`Deploy/Dockerfile` needs `.\Deploy\step.ps1 <step> -Rebuild` once).
+
+The Docker Hub steps (04a, 04b) build and push through your Docker Desktop: `step.ps1` mounts its
+socket and the whole repo (read-only) for those two only. They log in with their own `step.env` token
+inside the container, so your PC's own `docker login` is neither used nor changed.
 
 ## By hand first
 
@@ -57,6 +62,8 @@ the number and `repeated-` (`cloudflare-pages`).
 |---|---|---|---|---|
 | 02 | `ovh-setup` | the region(s) enabled (default `OVH_REGION=DE1,GRA11`, tried in order); checks flavors, image(s) (default `Debian 12 - Docker`, then `Debian 12`), cost API | `OVH_PROJECT` (by hand) | - |
 | 03 | `cloudflare-dns` | `ip.<domain>` (A, grey) and `*.<domain>` -> ip | - | `CF_ZONE_ID`, `CF_ACCOUNT_ID` |
+| 04a | `dockerhub-repos` | the Docker Hub repos `<user>/rising2-gamespy-mock-server`, `rising2-re-dedicated-server`, `rising2-server-dl-manager`, each with a `:placeholder` image | Docker Desktop running | - |
+| 04b | `repeated-dockerhub-push` | builds the game server images from this repo and pushes `:latest` (+ `:<commit>` when the repo is clean) | 04a, Docker Desktop running | `IMG_GAMESPY`, `IMG_DEDICATED` (for `server.env`) |
 | 05a | `repeated-cloudflare-r2-test-server` | the **test** server as the VM's compose: hello page + Dozzle logs (`../LazyServer/test-server`) | `CF_ACCOUNT_ID` | - |
 | 05b | `repeated-cloudflare-r2-populate` | the **real** server: `../LazyServer/docker-compose.yml` + `server.env` (replaces 05a) | `CF_ACCOUNT_ID` | - |
 | 06 | `cloudflare-turnstile` | the captcha widget | `CF_ACCOUNT_ID` | `TURNSTILE_SITEKEY`, `TURNSTILE_SECRET` |

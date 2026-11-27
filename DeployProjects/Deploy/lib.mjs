@@ -38,6 +38,8 @@ export const F = {
   webhook: { re: /^https:\/\/(discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+$/, shape: "https://discord.com/api/webhooks/<17-20 digits>/<~68 characters>" },
   invite: { re: /^https:\/\/(discord\.gg|discord\.com\/invite)\/\w+$/, shape: "https://discord.gg/AbCdEf12" },
   flavors: { re: /^[\w.-]+(,[\w.-]+)*$/, shape: "comma-separated OVH flavor names, e.g. c3-8,b3-16" },
+  dockerId: { re: /^[a-z0-9]{4,30}$/, shape: "your Docker ID: 4-30 lowercase letters/digits (the name in docker login -u)" },
+  dockerToken: { re: /^dckr_pat_[\w-]{20,}$/, shape: "dckr_pat_ + ~27 characters (Docker Hub > Account settings > Personal access tokens, Read & Write)" },
   any: { re: /^.+$/, shape: "text" },
 };
 
@@ -237,6 +239,43 @@ export function wrangler(args, { token, account, cwd = BUILD } = {}) {
     throw new Error(`${shown} failed: ${why || `exit code ${r.status}, no output`}`);
   }
   return r.stdout;
+}
+
+// ------------------------------------------------------------------ docker (steps 04a, 04b)
+// The docker CLI talks to your Docker Desktop through the mounted socket. Its login lives in a
+// config folder inside this container only (gone with it): your PC's own docker login is untouched.
+const DOCKER_CONFIG = "/tmp/docker-config";
+export const REPO = process.env.REPO_DIR || "/repo"; // the whole git repo, read-only (docker steps only)
+
+// live: show the command's output as it runs (builds, pushes); else it's captured and returned.
+export function docker(args, { input, live = false } = {}) {
+  const shown = `docker ${args.join(" ")}`;
+  if (DRY) { console.log(`     (dry run) ${shown}`); return ""; }
+  if (live) console.log(`     $ ${shown}`);
+  const r = spawnSync("docker", args, { input, encoding: "utf8", stdio: live ? ["ignore", "inherit", "inherit"] : "pipe",
+    env: { ...process.env, DOCKER_CONFIG, BUILDKIT_PROGRESS: "plain", NO_COLOR: "1" } });
+  if (r.error?.code === "ENOENT") throw new Error("the deploy image has no docker CLI yet (it's older than steps 04a/04b): rebuild it once with step.ps1 -Rebuild (step.sh: REBUILD=1)");
+  if (r.error) throw new Error(`${shown}: ${r.error.message}`);
+  if (r.status !== 0) {
+    const out = `${r.stdout || ""}\n${r.stderr || ""}`.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (!live) console.log(out.map((l) => `     | ${l}`).join("\n"));
+    throw new Error(`${shown} failed: ${out.slice(-3).join(" ") || `exit code ${r.status} (see the output above)`}`);
+  }
+  return r.stdout || "";
+}
+
+// Checks Docker Desktop is reachable, then logs in to the registry with the step's token.
+// DOCKER_REGISTRY: only for testing these scripts against a local registry (default: Docker Hub).
+export function dockerLogin(E, R) {
+  if (!DRY && !fs.existsSync("/var/run/docker.sock")) {
+    throw new Error("no Docker socket in the container: run this step with step.ps1 / step.sh (they mount it for steps 04a/04b)");
+  }
+  const v = docker(["version", "--format", "{{.Server.Version}}"]).trim();
+  R.ok("docker", `Docker Desktop reachable${v ? ` (engine ${v})` : ""}`);
+  const reg = process.env.DOCKER_REGISTRY || "";
+  docker(["login", ...(reg ? [reg] : []), "-u", E.DOCKERHUB_USER, "--password-stdin"], { input: E.DOCKERHUB_TOKEN });
+  R.ok("login", `logged in to ${reg || "Docker Hub"} as ${E.DOCKERHUB_USER} (inside this container only)`);
+  return (name) => `${reg ? `${reg}/` : ""}${E.DOCKERHUB_USER}/${name}`;
 }
 
 // The VM's two files in R2 (steps 05a test / 05b real write the same keys: the last one run wins).

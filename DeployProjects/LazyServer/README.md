@@ -47,7 +47,8 @@ Logs: `/var/log/rising2-init.log`, `journalctl -t rising2`, `docker compose logs
 
 ## Before the first start
 
-1. Push the images named in `server.env` (`IMG_GAMESPY`, `IMG_DEDICATED`) to Docker Hub.
+1. Push the images (Deploy steps **04a** once, then **04b** after each change); `server.env` names them
+   (`IMG_GAMESPY`, `IMG_DEDICATED`, which 04b prints).
 2. `cp server.env.example server.env`, fill in the server accounts and profiles
    (`FUN_PROFILE` must exist in the game's `bin/DedicatedServer.ini`).
 3. `./upload.sh seed` once (packs the repo's `GameSpy_UnifiedServer` config + login DB as the

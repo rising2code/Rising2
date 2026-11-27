@@ -15,7 +15,21 @@ export const S = {
   VM_NAME: { name: "VM_NAME", f: F.name, required: true, def: "rising2-lazy", about: "the game VM's name (the worker creates and deletes only this name)" },
   R2_BUCKET: { name: "R2_BUCKET", f: F.name, required: true, def: "rising2", about: "R2 bucket name" },
   SHARED_TOKEN: { name: "SHARED_TOKEN", f: F.sharedToken, required: true, about: "token between the worker and the VM / the test loop" },
+  DOCKERHUB_USER: { name: "DOCKERHUB_USER", f: F.dockerId, required: true, about: "your Docker Hub user: the images are <user>/rising2-..." },
+  DOCKERHUB_TOKEN: { name: "DOCKERHUB_TOKEN", f: F.dockerToken, required: true, about: "a Docker Hub personal access token with Read & Write (the one that works with docker login)" },
 };
+
+// The game server images on Docker Hub (<user>/<name>). dir / dockerfile are relative to the repo
+// root; an image whose Dockerfile isn't there yet is skipped by 04b (04a still makes its repo).
+// env: the server.env setting that names it for the VM's docker-compose.yml.
+export const IMAGES = [
+  { name: "rising2-gamespy-mock-server", dir: "GameSpy_UnifiedServer", dockerfile: "GameSpy_UnifiedServer/Dockerfile", env: "IMG_GAMESPY",
+    about: "the GameSpy mock: login, server list, stats" },
+  { name: "rising2-re-dedicated-server", dir: "ServerLauncher", dockerfile: "ServerLauncher/docker/Dockerfile", env: "IMG_DEDICATED",
+    about: "the Rising Eagle dedicated server under Wine" },
+  { name: "rising2-server-dl-manager", dir: "ServerDlManager", dockerfile: "ServerDlManager/Dockerfile", env: "IMG_DL_MANAGER",
+    about: "downloads Game.zip once into the shared folder the game servers mount" },
+];
 
 export const ovhKey = (which) => [S.OVH_ENDPOINT, S.OVH_APP_KEY(which), S.OVH_APP_SECRET(which), S.OVH_CONSUMER_KEY(which)];
 export const ovhCreds = (E) => ({ endpoint: E.OVH_ENDPOINT, appKey: E.OVH_APP_KEY, appSecret: E.OVH_APP_SECRET, consumerKey: E.OVH_CONSUMER_KEY });

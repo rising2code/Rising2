@@ -361,6 +361,29 @@ export function r2Exists(E, key) {
   } finally { fs.rmSync(back, { force: true }); }
 }
 
+// The website's data (steps 05a / 05b, after the VM's files): site/urls.json from the step's link
+// settings and site/s3files.json from DeployProjects/SiteData. The page gets them from the worker
+// only after its captcha. Kept if already in R2 (edit them there) unless OVERWRITE_SITE=yes.
+export function putSiteFiles(E, R) {
+  const urls = Object.fromEntries(Object.entries({ discord: E.DISCORD_INVITE, github: E.GITHUB_URL, download: E.DOWNLOAD_URL }).filter(([, v]) => v));
+  const files = JSON.parse(fs.readFileSync(path.join(SRC, "SiteData", "s3files.json"), "utf8")); // broken JSON stops here, not on the site
+  if (!Array.isArray(files.files)) throw new Error("SiteData/s3files.json needs a \"files\" list");
+  const bad = files.files.filter((f) => !f || typeof f.key !== "string" || !f.key).length;
+  if (bad) throw new Error(`SiteData/s3files.json: ${bad} entr${bad === 1 ? "y has" : "ies have"} no "key"`);
+  fs.mkdirSync(BUILD, { recursive: true });
+  const w = { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID };
+  const put = (key, obj, what) => {
+    if (E.OVERWRITE_SITE !== "yes" && r2Exists(E, key)) return R.ok(key, "already in R2 - kept (OVERWRITE_SITE=yes replaces it)");
+    if (key.endsWith("urls.json")) for (const k of ["discord", "download"]) if (!urls[k]) R.warn(k, "no link set: the page hides that button");
+    const f = path.join(BUILD, path.basename(key));
+    fs.writeFileSync(f, JSON.stringify(obj, null, 2) + "\n");
+    wrangler(["r2", "object", "put", `${E.R2_BUCKET}/${key}`, "--file", f, "--content-type", "application/json"], w);
+    R.ok(key, `${DRY ? "(dry run) " : ""}uploaded: ${what}`);
+  };
+  put("site/urls.json", urls, Object.keys(urls).join(", ") || "no links");
+  put("site/s3files.json", files, `${files.files.length} archive file${files.files.length === 1 ? "" : "s"}`);
+}
+
 export async function deleteServerFiles(E, R) {
   await checkR2Bucket(E, R);
   const w = { token: E.CF_API_TOKEN, account: E.CF_ACCOUNT_ID };

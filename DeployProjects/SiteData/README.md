@@ -1,9 +1,9 @@
 # Site data
 
-What the landing page shows only after its captcha (the worker serves it from R2, Deploy step 05
-uploads the first copy; after that edit the files in R2: dashboard > R2 > the bucket > `site/`):
+What the landing page shows only after its captcha (the worker serves it from R2, Deploy steps 05a / 05b
+upload the first copy; after that edit the files in R2: dashboard > R2 > the bucket > `site/`):
 
-* `site/urls.json` - the page's links, made from step 05's settings: `{"discord": ..., "github": ..., "download": ...}`.
+* `site/urls.json` - the page's links, made from the 05a / 05b settings (`DISCORD_INVITE`, `GITHUB_URL`, `DOWNLOAD_URL`; `OVERWRITE_SITE=yes` to replace): `{"discord": ..., "github": ..., "download": ...}`.
   A link that's missing hides its buttons.
 * `site/s3files.json` - from [s3files.json](s3files.json): the public resource archive. Each entry:
 

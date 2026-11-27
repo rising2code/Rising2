@@ -20,7 +20,7 @@ export default {
     const A = `/accounts/${E.CF_ACCOUNT_ID}/pages/projects`;
 
     // the site, with CONFIG patched (the repo's app.js is never changed). The links (Discord, GitHub,
-    // download) aren't in the page: it gets them from the worker after the captcha (R2 site/urls.json, step 05).
+    // download) aren't in the page: it gets them from the worker after the captcha (R2 site/urls.json, steps 05a / 05b).
     const out = path.join(BUILD, "site");
     fs.rmSync(out, { recursive: true, force: true });
     for (const f of ["index.html", "style.css", "app.js", "assets"]) {

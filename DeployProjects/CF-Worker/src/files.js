@@ -1,4 +1,4 @@
-// The site's links and the public resource archive, both read from R2 (Deploy step 05 uploads them;
+// The site's links and the public resource archive, both read from R2 (Deploy steps 05a / 05b upload them;
 // edit them in R2 any time): site/urls.json {discord, github, download, ...} and
 // site/s3files.json {files: [{key, name, size?, about?}]}. Archive files sit in an S3 bucket (OVH
 // Object Storage) that isn't public: /sign-s3-1 hands out a 10-minute download link for one listed file.

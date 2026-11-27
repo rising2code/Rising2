@@ -16,7 +16,7 @@ Sections: banner with **Direct download** + Discord, live server status, "why Ri
 ## To fill in
 
 * `CONFIG` at the top of [app.js](app.js): only the Turnstile site key (Deploy step 07 sets it; the
-  default is Cloudflare's always-pass test key). The links live in R2 (Deploy step 05, `../SiteData`).
+  default is Cloudflare's always-pass test key). The links live in R2 (Deploy steps 05a / 05b, `../SiteData`).
 * Gallery videos in [index.html](index.html): `<figure data-yt="YOUTUBE_ID">` and its
   `<figcaption>`. An empty id shows a "video coming soon" slide; the player loads only on click
   (youtube-nocookie).

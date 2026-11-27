@@ -31,5 +31,14 @@ export const IMAGES = [
     about: "downloads Game.zip once into the shared folder the game servers mount" },
 ];
 
-export const ovhKey = (which) => [S.OVH_ENDPOINT, S.OVH_APP_KEY(which), S.OVH_APP_SECRET(which), S.OVH_CONSUMER_KEY(which)];
+// The website's data in R2 (site/urls.json + site/s3files.json), uploaded by 05a and 05b next to the
+// VM's files: the page's links, and the archive list from DeployProjects/SiteData/s3files.json.
+export const SITE = [
+  { name: "DISCORD_INVITE", f: F.invite, about: "the site's Discord buttons (site/urls.json)" },
+  { name: "GITHUB_URL", f: F.url, def: "https://github.com/rising2code/Rising2", about: "the site's GitHub button" },
+  { name: "DOWNLOAD_URL", f: F.url, about: "the site's \"1.3GB ZIP download\" buttons" },
+  { name: "OVERWRITE_SITE", f: F.yesno, required: true, def: "no", about: "yes = replace site/urls.json + site/s3files.json if already in R2 (no = keep them, e.g. after editing them in R2)" },
+];
+
+export const ovhKey =(which) => [S.OVH_ENDPOINT, S.OVH_APP_KEY(which), S.OVH_APP_SECRET(which), S.OVH_CONSUMER_KEY(which)];
 export const ovhCreds = (E) => ({ endpoint: E.OVH_ENDPOINT, appKey: E.OVH_APP_KEY, appSecret: E.OVH_APP_SECRET, consumerKey: E.OVH_CONSUMER_KEY });

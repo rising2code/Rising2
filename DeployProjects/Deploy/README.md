@@ -64,9 +64,8 @@ the number and `repeated-` (`cloudflare-pages`).
 | 03 | `cloudflare-dns` | `ip.<domain>` (A, grey) and `*.<domain>` -> ip | - | `CF_ZONE_ID`, `CF_ACCOUNT_ID` |
 | 04a | `dockerhub-repos` | the Docker Hub repos `<user>/rising2-gamespy-mock-server`, `rising2-re-dedicated-server`, `rising2-server-dl-manager`, each with a `:placeholder` image | Docker Desktop running | - |
 | 04b | `repeated-dockerhub-push` | builds the game server images from this repo and pushes `:latest` (+ `:<commit>` when the repo is clean) | 04a, Docker Desktop running | `IMG_GAMESPY`, `IMG_DEDICATED` (for `server.env`) |
-| 05 | `cloudflare-r2-first-populate` | the website data in R2: `site/urls.json` (Discord / GitHub / download links) and `site/s3files.json` (the archive list, from `../SiteData`); kept if already there unless `OVERWRITE=yes` | `CF_ACCOUNT_ID` | - |
-| 05a | `repeated-cloudflare-r2-test-server` | the **test** server as the VM's compose: hello page + Dozzle logs (`../LazyServer/test-server`) | `CF_ACCOUNT_ID` | - |
-| 05b | `repeated-cloudflare-r2-populate` | the **real** server: `../LazyServer/docker-compose.yml` + `server.env` (replaces 05a) | `CF_ACCOUNT_ID` | - |
+| 05a | `repeated-cloudflare-r2-test-server` | the **test** server as the VM's compose: hello page + Dozzle logs (`../LazyServer/test-server`); plus the website data `site/urls.json` + `site/s3files.json` (see `../SiteData`, kept unless `OVERWRITE_SITE=yes`) | `CF_ACCOUNT_ID` | - |
+| 05b | `repeated-cloudflare-r2-populate` | the **real** server: `../LazyServer/docker-compose.yml` + `server.env` (replaces 05a); plus the website data `site/urls.json` + `site/s3files.json` (see `../SiteData`, kept unless `OVERWRITE_SITE=yes`) | `CF_ACCOUNT_ID` | - |
 | 06 | `cloudflare-turnstile` | the captcha widget | `CF_ACCOUNT_ID` | `TURNSTILE_SITEKEY`, `TURNSTILE_SECRET` |
 | 07 | `repeated-cloudflare-pages` | the landing page, `<domain>` + `www` and their DNS | `CF_ACCOUNT_ID`, `TURNSTILE_SITEKEY` | - |
 | 08 | `repeated-cloudflare-worker` | the worker on `<domain>/api/*` + its secrets | `CF_ACCOUNT_ID`, `CF_ZONE_ID`, `TURNSTILE_SECRET`, `OVH_PROJECT`, `DISCORD_PUBLIC_KEY` (optional) | - |

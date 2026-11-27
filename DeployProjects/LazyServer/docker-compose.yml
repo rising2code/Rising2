@@ -1,6 +1,7 @@
-# Rising2 LazyServer stack. Uploaded to R2 server/docker-compose.yml (see upload.sh);
+# Rising2 LazyServer stack. Uploaded to R2 server/docker-compose.yml by Deploy step 05b (or upload.sh);
 # the VM downloads it to /opt/rising2 together with server/.env (secrets, see server.env.example).
 # cloud_init.sh appends PUBLIC_IP=<this VM's IP> to .env before "docker compose up".
+# The images are built and pushed to Docker Hub by Deploy step 04b (IMG_* in server.env name them).
 #
 # Host networking everywhere: the GameSpy mock must see the real source IP of every game
 # server and player. The game servers reach the mock through the patched *.reagspy.com names.

@@ -3,7 +3,7 @@
 # file as userData when it creates the VM; cloud-init runs it once as root on first boot.
 #
 #   cloud_init.sh          first boot: docker, game files, state from R2, DNS, compose up
-#   cloud_init.sh tick     every minute (systemd timer): stop flag; every 15 min: sync + idle check
+#   cloud_init.sh tick     every minute (systemd timer): stop flag + player count; every 15 min: sync + idle check
 #   cloud_init.sh sync     upload SQLite + config to R2 now
 #   cloud_init.sh teardown final sync, then ask the worker to delete this VM
 set -uo pipefail
@@ -11,7 +11,7 @@ set -uo pipefail
 WORKER_URL="__WORKER_URL__"
 TOKEN="__TOKEN__"
 GAME_ZIP_URL="__GAME_ZIP_URL__"   # "none" = skip the game files (test server)
-SSH_PUBKEY="__SSH_PUBKEY__"       # optional: one public key let in for the default user (debugging)
+SSH_PUBKEY="__SSH_PUBKEY__"       # optional: one public key let in as root and debian (debugging)
 
 APP=/opt/rising2                 # compose project: docker-compose.yml, .env, gamespy/{data,config}
 GAME=/srv/rising2/game           # unzipped Game.zip (the folder with bin/ and data/)
@@ -78,10 +78,9 @@ sync_down() {
 
 # ---------------------------------------------------------------- first boot
 
-# The VM is made with no SSH key; if the worker passed one (SSH_PUBLIC_KEY), let it in for the
-# image's default user (debian on OVH's Debian images; else the first normal user).
-# The key gets in as root and as the image's default user (debian). Root logs in with a key only
-# (prohibit-password); cloud images block root over SSH, so a drop-in turns that back on.
+# The VM is made with no SSH key; if the worker passed one (SSH_PUBLIC_KEY), it gets in as root and
+# as the image's default user (debian on OVH's Debian images; else the first normal user). Root logs
+# in with a key only (prohibit-password); cloud images block root over SSH, so a drop-in allows it.
 add_ssh_key() {
   case "$SSH_PUBKEY" in ssh-*|ecdsa-*) ;; *) return 0 ;; esac
   local user home users=root

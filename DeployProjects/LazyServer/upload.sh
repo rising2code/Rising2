@@ -1,5 +1,6 @@
 #!/bin/bash
-# Push the VM's files to R2 with wrangler (run from this folder).
+# Push the VM's files to R2 with wrangler (run from this folder). Deploy step 05b does the plain
+# upload too, with checks and from Docker; "seed" (the first saved state) is only here.
 #   ./upload.sh          docker-compose.yml + server.env  -> R2 server/
 #   ./upload.sh seed     also pack ../../GameSpy_UnifiedServer/{data/*.db3,config} as the first
 #                        configs_sync/state.tar.gz (only if R2 has no state yet - it overwrites!)
